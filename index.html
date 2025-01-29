@@ -196,7 +196,7 @@
             </div>
 
             <div class="controls">
-                <button id="processBtn" onclick="startProcessing()">
+                <button id="processBtn" onclick="startProcessing()" disabled>
                     <i class="fas fa-magic"></i> Lyrics synchronisieren
                 </button>
                 <div class="progress">
@@ -216,6 +216,7 @@
         let wavesurfer = null;
         let model = null;
         let audioBuffer = null;
+        let isModelLoaded = false;
 
         document.addEventListener('DOMContentLoaded', async () => {
             wavesurfer = WaveSurfer.create({
@@ -237,10 +238,16 @@
             });
 
             try {
+                updateUI('Lade KI-Modell...', 0);
                 model = await tf.loadGraphModel('https://storage.googleapis.com/tfjs-models/sound-classification/vocal-detection/model.json');
+                isModelLoaded = true;
+                document.getElementById('processBtn').disabled = false;
+                updateUI('Bereit', 0);
             } catch (error) {
                 console.error('Fehler beim Laden des Models:', error);
-                alert('Modell konnte nicht geladen werden');
+                updateUI('Modell fehlgeschlagen', 0);
+                document.getElementById('processBtn').disabled = true;
+                setTimeout(() => resetUI(), 2000);
             }
         });
 
@@ -279,21 +286,21 @@
         
         async function startProcessing() {
             try {
+                if (!isModelLoaded) {
+                    throw new Error('KI-Modell wird noch geladen... Bitte warten');
+                }
+                
                 const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
                 if (!audioBuffer) throw new Error('Bitte Audio-Datei hochladen');
                 if (lyrics.length === 0) throw new Error('Bitte Lyrics eingeben');
-                if (!model) throw new Error('KI-Modell wird noch geladen... Bitte warten');
 
                 updateUI('Analysiere Audio...', 20);
-                
                 const vocalSegments = await analyzeAudio(audioBuffer);
                 
                 updateUI('Erstelle Zeitstempel...', 60);
-                
                 const lrcContent = generateLRC(lyrics, vocalSegments);
                 
                 updateUI('Finalisiere...', 90);
-                
                 createDownload(lrcContent);
                 
                 updateUI('Fertig!', 100);
