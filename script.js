@@ -1,75 +1,129 @@
-const state = {
-    currentFile: null
-};
+// script.js
+let wavesurfer = null;
+let model = null;
+let audioBuffer = null;
 
-const uploadContainer = document.getElementById('uploadContainer');
-const filePreview = document.getElementById('filePreview');
-const fileName = document.getElementById('fileName');
-const fileSize = document.getElementById('fileSize');
-const fileInput = document.getElementById('fileInput');
-const dropZone = document.getElementById('dropZone');
+// Initialisierung
+document.addEventListener('DOMContentLoaded', async () => {
+    // Wavesurfer initialisieren
+    wavesurfer = WaveSurfer.create({
+        container: '#waveform',
+        waveColor: '#6c5ce7',
+        progressColor: '#4b4bff',
+        cursorColor: '#2d3436',
+        height: 120,
+        responsive: true
+    });
 
-// Event Listener
-fileInput.addEventListener('change', handleFileSelect);
-uploadContainer.addEventListener('dragover', handleDragOver);
-uploadContainer.addEventListener('drop', handleFileDrop);
-uploadContainer.addEventListener('dragleave', handleDragLeave);
+    // KI-Modell laden
+    model = await tf.loadLayersModel('https://your-model-host.com/model.json');
+});
 
-function handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (file) processFile(file);
-}
+async function startProcessing() {
+    try {
+        // Validierung
+        if (!state.currentFile) throw new Error('Keine Audio-Datei hochgeladen');
+        if (!document.getElementById('lyricsInput').value) throw new Error('Keine Lyrics eingegeben');
 
-function handleDragOver(e) {
-    e.preventDefault();
-    if (!state.currentFile) {
-        uploadContainer.style.backgroundColor = 'rgba(108,92,231,0.1)';
+        updateProgress(10, 'Analysiere Audio...');
+        
+        // Audio analysieren
+        const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
+        const peaks = wavesurfer.backend.getPeaks(44100);
+        
+        updateProgress(30, 'Erkenne Gesang...');
+        const vocalSegments = await detectVocals(peaks);
+        
+        updateProgress(60, 'Synchronisiere Lyrics...');
+        const lrcContent = generateLRC(lyrics, vocalSegments);
+        
+        updateProgress(90, 'Finalisiere...');
+        createDownload(lrcContent);
+        
+        updateProgress(100, 'Fertig!');
+        document.getElementById('resultContainer').hidden = false;
+
+    } catch (error) {
+        alert(`Fehler: ${error.message}`);
+        updateProgress(0, '');
     }
 }
 
-function handleDragLeave(e) {
-    e.preventDefault();
-    uploadContainer.style.backgroundColor = '';
-}
-
-function handleFileDrop(e) {
-    e.preventDefault();
-    uploadContainer.style.backgroundColor = '';
+async function detectVocals(peaks) {
+    // KI-Analyse
+    const tensor = tf.tensor3d([peaks]);
+    const prediction = await model.predict(tensor);
+    const results = await prediction.data();
     
-    if (state.currentFile) return;
+    // Segmentierung
+    const segments = [];
+    let currentSegment = null;
+    const threshold = 0.75;
+
+    results.forEach((confidence, index) => {
+        const time = index / 100; // 10ms Schritte
+        
+        if (confidence > threshold) {
+            if (!currentSegment) {
+                currentSegment = { start: time, end: time };
+            } else {
+                currentSegment.end = time;
+            }
+        } else if (currentSegment) {
+            segments.push(currentSegment);
+            currentSegment = null;
+        }
+    });
     
-    const file = e.dataTransfer.files[0];
-    if (file) processFile(file);
+    return segments;
 }
 
-function processFile(file) {
-    if (!file.type.startsWith('audio/')) {
-        alert('Bitte nur Audio-Dateien (MP3, WAV) hochladen!');
-        fileInput.value = '';
-        return;
-    }
-
-    state.currentFile = file;
+function generateLRC(lyrics, segments) {
+    let lrc = '[re:AI-generated]\n';
+    let lineIndex = 0;
     
-    // UI aktualisieren
-    filePreview.classList.add('active');
-    fileName.textContent = file.name;
-    fileSize.textContent = formatFileSize(file.size);
-    dropZone.classList.add('disabled');
+    segments.forEach(segment => {
+        const duration = segment.end - segment.start;
+        const linesInSegment = Math.ceil(lyrics.length * (duration / getTotalDuration(segments)));
+        
+        for (let i = 0; i < linesInSegment; i++) {
+            if (lineIndex >= lyrics.length) break;
+            const timestamp = segment.start + (i * (duration / linesInSegment));
+            lrc += `[${formatTime(timestamp)}] ${lyrics[lineIndex]}\n`;
+            lineIndex++;
+        }
+    });
+    
+    return lrc;
 }
 
-function removeFile() {
-    state.currentFile = null;
-    filePreview.classList.remove('active');
-    fileName.textContent = '';
-    fileSize.textContent = '';
-    fileInput.value = '';
-    dropZone.classList.remove('disabled');
+function createDownload(content) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    document.getElementById('downloadBtn').href = url;
+    document.getElementById('downloadBtn').download = `${state.currentFile.name.replace(/\.[^/.]+$/, "")}_synced.lrc`;
 }
 
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const units = ['Bytes', 'KB', 'MB', 'GB'];
-    const exponent = Math.floor(Math.log(bytes) / Math.log(1024));
-    return parseFloat((bytes / Math.pow(1024, exponent)).toFixed(2)) + ' ' + units[exponent];
+function resetApp() {
+    removeFile();
+    document.getElementById('lyricsInput').value = '';
+    document.getElementById('resultContainer').hidden = true;
+    wavesurfer.empty();
+    updateProgress(0, '');
+}
+
+// Hilfsfunktionen
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toFixed(2).padStart(5, '0');
+    return `${mins}:${secs}`;
+}
+
+function getTotalDuration(segments) {
+    return segments.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+}
+
+function updateProgress(percent, text) {
+    document.querySelector('.progress-fill').style.width = `${percent}%`;
+    document.querySelector('.progress').setAttribute('data-status', text);
 }
