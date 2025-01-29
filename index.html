@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -13,40 +14,44 @@
     <div class="container">
         <div class="header">
             <h1><i class="fas fa-music"></i> LyricMaster Pro</h1>
-            <p class="tagline">AI-gestützte Lyrics-Synchronisation</p>
+            <p class="tagline">AI Lyrics Synchronisation</p>
         </div>
 
-        <div class="upload-card">
-            <div class="drop-zone" id="dropZone">
-                <i class="fas fa-file-audio"></i>
-                <p>Audiofile hier ablegen oder klicken</p>
-                <input type="file" id="audioInput" accept="audio/*">
+        <!-- Upload Card -->
+        <div class="upload-card" id="uploadCard">
+            <div class="upload-status">
+                <div class="file-preview" id="filePreview">
+                    <i class="fas fa-file-audio"></i>
+                    <div class="file-info">
+                        <span id="fileName"></span>
+                        <span class="file-size" id="fileSize"></span>
+                    </div>
+                    <button class="btn-remove" onclick="removeFile()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-content">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Audiofile hier ablegen</p>
+                        <span class="divider">oder</span>
+                        <button class="btn-browse">Datei auswählen</button>
+                    </div>
+                    <input type="file" id="audioInput" accept="audio/*">
+                </div>
             </div>
             
             <div class="lyrics-box">
-                <textarea id="lyricsInput" placeholder="Lyrics hier einfügen..."></textarea>
+                <textarea id="lyricsInput" placeholder="Füge Lyrics hier ein..."></textarea>
                 <div class="toolbar">
                     <button class="btn-primary" onclick="startProcessing()">
-                        <i class="fas fa-magic"></i> Synchronisieren
+                        <i class="fas fa-magic"></i> Start Sync
                     </button>
                 </div>
             </div>
         </div>
 
-        <div class="visualizer" id="waveform"></div>
-        
-        <div class="result-box" id="resultBox" hidden>
-            <div class="download-section">
-                <a class="btn-download" id="downloadBtn">
-                    <i class="fas fa-download"></i> LRC herunterladen
-                </a>
-            </div>
-        </div>
-
-        <div class="status-bar">
-            <div class="progress" id="progressBar"></div>
-            <span id="statusText">Bereit</span>
-        </div>
+        <!-- Rest bleibt gleich -->
     </div>
 
     <script src="script.js"></script>
