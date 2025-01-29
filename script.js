@@ -1,86 +1,118 @@
+const AI_MODEL_URL = 'https://raw.githubusercontent.com/MTG/melodia/main/melodia.onnx';
+let audioContext;
 let model;
-const MIN_VOCAL_LOUDNESS = 0.15; // Anpassbar für bessere Ergebnisse
 
 async function loadModel() {
-    model = await tf.automl.loadAudioClassification('https://storage.googleapis.com/tfjs-models/tfjs/speech_commands/v0.5/browser_fft/18w/model.json');
+    model = await ort.InferenceSession.create(AI_MODEL_URL);
 }
 
-async function analyzeAudio(audioBuffer) {
-    const audioData = audioBuffer.getChannelData(0);
-    const windowSize = 44100 * 1; // 1-Sekunden-Fenster
-    const predictions = [];
-
-    for (let i = 0; i < audioData.length; i += windowSize) {
-        const slice = audioData.slice(i, i + windowSize);
-        const input = tf.tensor(slice).reshape([-1, 44100]);
-        const prediction = await model.classify(input);
-        predictions.push({
-            time: i / 44100,
-            isVocal: prediction[0].label === '_background_noise_' ? 0 : prediction[0].prob
-        });
-        tf.dispose(input);
-    }
+async function detectVocals(audioBuffer) {
+    // Audio auf 22050Hz downsamplen
+    const offlineContext = new OfflineAudioContext(
+        1,
+        audioBuffer.duration * 22050,
+        22050
+    );
+    const source = offlineContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(offlineContext.destination);
+    source.start();
     
-    return predictions;
+    const resampledBuffer = await offlineContext.startRendering();
+    const audioData = resampledBuffer.getChannelData(0);
+    
+    // Vorverarbeitung für das Modell
+    const inputTensor = new ort.Tensor('float32', audioData, [1, audioData.length]);
+    
+    // Modellausführung
+    const outputs = await model.run({ input: inputTensor });
+    const vocals = outputs.vocals.data;
+    
+    // Zeitstempel der Gesangssegmente
+    return processVocalPredictions(vocals, 22050);
+}
+
+function processVocalPredictions(predictions, sampleRate) {
+    const segments = [];
+    let currentSegment = null;
+    const threshold = 0.7; // Konfidenzschwelle
+    
+    predictions.forEach((confidence, index) => {
+        const time = index / sampleRate;
+        
+        if (confidence > threshold) {
+            if (!currentSegment) {
+                currentSegment = { start: time, end: time };
+            } else {
+                currentSegment.end = time;
+            }
+        } else if (currentSegment) {
+            segments.push(currentSegment);
+            currentSegment = null;
+        }
+    });
+    
+    return segments;
 }
 
 async function startProcessing() {
-    const audioFile = document.getElementById('audioInput').files[0];
+    const audioFile = document.getElementById('audioUpload').files[0];
     const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
     
-    if (!audioFile || lyrics.length === 0) {
-        alert('Bitte Audio und Lyrics hochladen!');
-        return;
-    }
-
-    document.getElementById('progressBar').style.width = '0%';
-    await loadModel();
-
-    // Audio analysieren
-    const audioContext = new AudioContext();
-    const arrayBuffer = await audioFile.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    const analysis = await analyzeAudio(audioBuffer);
-
-    // Lyrics verteilen
-    const lrcContent = syncLyrics(analysis, lyrics, audioBuffer.duration);
+    if (!audioFile || lyrics.length === 0) return;
     
-    // Download vorbereiten
-    const blob = new Blob([lrcContent], {type: 'text/plain'});
-    const downloadBtn = document.getElementById('downloadBtn');
-    downloadBtn.href = URL.createObjectURL(blob);
-    downloadBtn.download = `${audioFile.name.split('.')[0]}_synced.lrc`;
-    downloadBtn.hidden = false;
+    document.querySelector('button').disabled = true;
+    document.getElementById('result').hidden = true;
+    
+    try {
+        // 1. Audio analysieren
+        const arrayBuffer = await audioFile.arrayBuffer();
+        audioContext = new AudioContext();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        // 2. AI-Modell laden
+        if (!model) await loadModel();
+        
+        // 3. Gesangssegmente erkennen
+        const vocalSegments = await detectVocals(audioBuffer);
+        
+        // 4. Lyrics zuordnen
+        const lrcContent = alignLyrics(lyrics, vocalSegments);
+        
+        // 5. Ergebnis anzeigen
+        const blob = new Blob([lrcContent], { type: 'text/plain' });
+        document.getElementById('downloadBtn').href = URL.createObjectURL(blob);
+        document.getElementById('downloadBtn').download = `${audioFile.name.replace(/\.[^/.]+$/, "")}_synced.lrc`;
+        document.getElementById('result').hidden = false;
+        
+    } catch (error) {
+        alert(`Fehler: ${error.message}`);
+    } finally {
+        document.querySelector('button').disabled = false;
+    }
 }
 
-function syncLyrics(analysis, lyrics, duration) {
-    let lrc = '[re:AI-generated sync]\n';
-    const vocalSegments = analysis.filter(a => a.isVocal > MIN_VOCAL_LOUDNESS);
-    const lyricsPerSegment = Math.ceil(lyrics.length / vocalSegments.length);
+function alignLyrics(lyrics, segments) {
+    let lrc = '[re:AI Synchronized]\n';
     let lyricIndex = 0;
-
-    vocalSegments.forEach((segment, index) => {
-        const timestamp = formatTime(segment.time);
-        const endTime = index < vocalSegments.length - 1 
-            ? vocalSegments[index + 1].time 
-            : duration;
-
-        for (let i = 0; i < lyricsPerSegment; i++) {
+    
+    segments.forEach(segment => {
+        const duration = segment.end - segment.start;
+        const linesInSegment = Math.ceil(lyrics.length * (duration / getTotalDuration(segments)));
+        
+        for (let i = 0; i < linesInSegment; i++) {
             if (lyricIndex >= lyrics.length) break;
-            lrc += `[${timestamp}] ${lyrics[lyricIndex]}\n`;
+            const lineTime = segment.start + (i * (duration / linesInSegment));
+            lrc += `[${formatTime(lineTime)}] ${lyrics[lyricIndex]}\n`;
             lyricIndex++;
         }
-
-        // Leerzeilen für Pausen
-        if (index < vocalSegments.length - 1) {
-            const pauseDuration = vocalSegments[index + 1].time - endTime;
-            if (pauseDuration > 2) {
-                lrc += `[${formatTime(endTime)}] \n`;
-            }
-        }
     });
-
+    
     return lrc;
+}
+
+function getTotalDuration(segments) {
+    return segments.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
 }
 
 function formatTime(seconds) {
