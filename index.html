@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+    <!-- Unveränderte CSS und Head-Sektion -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LyricMaster Pro</title>
@@ -8,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
     <style>
+        /* Unverändertes CSS */
         :root {
             --primary: #6c5ce7;
             --secondary: #a8a5e6;
@@ -63,6 +65,7 @@
             border-radius: 1rem;
             overflow: hidden;
             background: #3d3d3d;
+            position: relative;
         }
 
         .lyrics-editor {
@@ -150,6 +153,17 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
+        /* Neuer Play-Button Style */
+        #playButton {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.8rem 1.5rem;
+            z-index: 10;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -174,7 +188,11 @@
                 <p style="margin-top: 1rem">oder Datei hierher ziehen</p>
             </div>
 
-            <div class="waveform" id="waveform"></div>
+            <div class="waveform" id="waveform">
+                <button id="playButton" onclick="togglePlay()">
+                    <i class="fas fa-play"></i> Abspielen
+                </button>
+            </div>
 
             <div class="lyrics-editor">
                 <textarea id="lyricsInput" placeholder="Füge Lyrics hier ein... (Eine Zeile pro Textzeile)"></textarea>
@@ -213,20 +231,24 @@
                 cursorColor: '#ffffff'
             });
 
+            // Play/Pause Event Handling
+            wavesurfer.on('play', () => {
+                document.querySelector('#playButton i').classList.replace('fa-play', 'fa-pause');
+            });
+
+            wavesurfer.on('pause', () => {
+                document.querySelector('#playButton i').classList.replace('fa-pause', 'fa-play');
+            });
+
             model = await tf.loadGraphModel('https://storage.googleapis.com/tfjs-models/sound-classification/vocal-detection/model.json');
         });
 
-        // Verbessertes Datei-Handling
-        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
-        
-        function removeFile() {
-            document.getElementById('fileInput').value = '';
-            document.getElementById('fileDisplay').style.display = 'none';
-            document.getElementById('uploadButton').style.display = 'block';
-            wavesurfer.empty();
-            audioBuffer = null;
+        // Play/Pause Funktion
+        function togglePlay() {
+            wavesurfer.playPause();
         }
 
+        // Angepasste Datei-Verarbeitung
         function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -240,11 +262,23 @@
                 const audioContext = new AudioContext();
                 audioBuffer = await audioContext.decodeAudioData(e.target.result);
                 wavesurfer.load(URL.createObjectURL(file));
+                document.getElementById('playButton').style.display = 'block';
             };
             reader.readAsArrayBuffer(file);
         }
 
-        // Hauptprozess
+        function removeFile() {
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileDisplay').style.display = 'none';
+            document.getElementById('uploadButton').style.display = 'block';
+            wavesurfer.empty();
+            audioBuffer = null;
+            document.getElementById('playButton').style.display = 'none';
+        }
+
+        // Restlicher unveränderter JavaScript-Code bleibt gleich */
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        
         async function startProcessing() {
             try {
                 const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
@@ -272,9 +306,8 @@
             }
         }
 
-        // Verbesserte KI-Analyse
         async function analyzeAudio(buffer) {
-            const windowSize = 44100; // 1 Sekunde bei 44.1kHz
+            const windowSize = 44100;
             const channelData = buffer.getChannelData(0);
             const predictions = [];
 
@@ -310,7 +343,6 @@
             return segments;
         }
 
-        // Präzisere LRC-Generierung
         function generateLRC(lyrics, segments) {
             let lrc = '[re:AI Synchronized]\n';
             let lyricIndex = 0;
@@ -332,7 +364,6 @@
             return lrc;
         }
 
-        // Hilfsfunktionen
         function formatTime(seconds) {
             const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
             const secs = (seconds % 60).toFixed(2).padStart(5, '0');
