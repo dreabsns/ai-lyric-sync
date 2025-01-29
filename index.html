@@ -319,8 +319,10 @@
 
             for (let i = 0; i < channelData.length; i += windowSize) {
                 const slice = channelData.slice(i, i + windowSize);
+                if (slice.length < windowSize) continue;
+
                 const input = tf.tensor(slice).reshape([1, windowSize, 1]);
-                const prediction = await model.predict(input);
+                const prediction = model.predict(input);
                 const confidence = prediction.dataSync()[0];
                 predictions.push({
                     start: i / buffer.sampleRate,
@@ -331,7 +333,7 @@
 
             const segments = [];
             let currentSegment = null;
-            const confidenceThreshold = 0.7;
+            const confidenceThreshold = 0.5;
 
             predictions.forEach(pred => {
                 if (pred.confidence > confidenceThreshold) {
