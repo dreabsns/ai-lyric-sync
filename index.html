@@ -4,54 +4,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LyricMaster Pro</title>
+    <title>LyricSync Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1><i class="fas fa-music"></i> LyricMaster Pro</h1>
-            <p class="tagline">AI Lyrics Synchronisation</p>
-        </div>
-
-        <!-- Upload Card -->
-        <div class="upload-card" id="uploadCard">
-            <div class="upload-status">
-                <div class="file-preview" id="filePreview">
+        <div class="upload-container" id="uploadContainer">
+            <!-- Aktive Datei-Anzeige -->
+            <div class="file-preview" id="filePreview">
+                <div class="file-info">
                     <i class="fas fa-file-audio"></i>
-                    <div class="file-info">
+                    <div>
                         <span id="fileName"></span>
                         <span class="file-size" id="fileSize"></span>
                     </div>
-                    <button class="btn-remove" onclick="removeFile()">
-                        <i class="fas fa-times"></i>
-                    </button>
                 </div>
-                <div class="drop-zone" id="dropZone">
-                    <div class="drop-content">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Audiofile hier ablegen</p>
-                        <span class="divider">oder</span>
-                        <button class="btn-browse">Datei auswählen</button>
-                    </div>
-                    <input type="file" id="audioInput" accept="audio/*">
-                </div>
+                <button class="btn-remove" onclick="removeFile()">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
-            
-            <div class="lyrics-box">
-                <textarea id="lyricsInput" placeholder="Füge Lyrics hier ein..."></textarea>
-                <div class="toolbar">
-                    <button class="btn-primary" onclick="startProcessing()">
-                        <i class="fas fa-magic"></i> Start Sync
-                    </button>
+
+            <!-- Upload-Bereich -->
+            <div class="drop-zone" id="dropZone">
+                <input type="file" id="fileInput" accept="audio/*">
+                <div class="upload-prompt">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Audio-Datei hier ablegen oder klicken</p>
                 </div>
             </div>
         </div>
-
-        <!-- Rest bleibt gleich -->
     </div>
 
     <script src="script.js"></script>
