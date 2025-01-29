@@ -3,25 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lyric Sync AI</title>
+    <title>AI Lyric Syncer</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>🎵 Ultimate Lyric Sync</h1>
+        <h1>🎤 AI Lyrics Synchronizer</h1>
         
-        <div class="upload-box">
-            <input type="file" id="audioUpload" accept="audio/*">
-            <label for="audioUpload">Song hochladen</label>
+        <div class="upload-section">
+            <input type="file" id="audioInput" accept="audio/*">
+            <textarea id="lyricsInput" placeholder="Lyrics hier einfügen..."></textarea>
         </div>
 
-        <textarea id="lyricsInput" placeholder="Lyrics hier einfügen..."></textarea>
-
-        <button onclick="processFiles()">Jetzt synchronisieren ✨</button>
+        <button onclick="startProcessing()">Jetzt synchronisieren 🤖</button>
         
-        <audio id="audioPlayer" controls hidden></audio>
-        <a id="downloadLink" hidden>Download LRC</a>
-        <div class="loader" id="loader"></div>
+        <div id="progressBar"></div>
+        <a id="downloadBtn" hidden>LRC herunterladen ⬇️</a>
     </div>
 
     <script src="script.js"></script>
