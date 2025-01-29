@@ -1,4 +1,3 @@
-/* style.css */
 :root {
     --primary: #6c5ce7;
     --danger: #ff4757;
@@ -87,6 +86,12 @@ body {
     cursor: pointer;
 }
 
+.drop-zone.disabled {
+    pointer-events: none;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 #fileInput {
     opacity: 0;
     position: absolute;
@@ -107,6 +112,17 @@ body {
     margin-bottom: 1rem;
 }
 
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    border: 0;
+}
+
 @keyframes slideIn {
     from {
         opacity: 0;
@@ -115,5 +131,20 @@ body {
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    .file-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .btn-remove {
+        padding: 0.6rem 1rem;
     }
 }
