@@ -1,15 +1,13 @@
 :root {
     --primary: #6c5ce7;
     --background: #f8f9fa;
-    --silence: #ff7675;
 }
 
 body {
-    font-family: 'Segoe UI', sans-serif;
+    font-family: Arial, sans-serif;
     background: var(--background);
     margin: 0;
     padding: 20px;
-    min-height: 100vh;
 }
 
 .container {
@@ -20,26 +18,23 @@ body {
 h1 {
     color: var(--primary);
     text-align: center;
-    margin-bottom: 40px;
 }
 
 .upload-box {
     border: 2px dashed var(--primary);
     border-radius: 10px;
-    padding: 30px;
+    padding: 20px;
+    margin: 20px 0;
     text-align: center;
-    margin-bottom: 20px;
 }
 
 #lyricsInput {
     width: 100%;
     height: 200px;
-    padding: 15px;
-    margin: 20px 0;
+    padding: 10px;
+    margin: 10px 0;
     border: 1px solid var(--primary);
-    border-radius: 8px;
-    resize: vertical;
-    font-family: monospace;
+    border-radius: 5px;
 }
 
 button {
@@ -48,23 +43,8 @@ button {
     background: var(--primary);
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 5px;
     cursor: pointer;
-    font-size: 16px;
-    transition: transform 0.2s;
-}
-
-button:hover {
-    transform: translateY(-2px);
-}
-
-#downloadLink {
-    display: block;
-    margin-top: 20px;
-    color: var(--primary);
-    text-decoration: none;
-    font-weight: bold;
-    text-align: center;
 }
 
 .loader {
@@ -81,10 +61,4 @@ button:hover {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-}
-
-.silence-marker {
-    color: var(--silence);
-    font-size: 0.8em;
-    margin: 5px 0;
 }
