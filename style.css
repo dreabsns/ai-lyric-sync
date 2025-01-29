@@ -1,196 +1,92 @@
-:root {
-    --primary: #6c5ce7;
-    --secondary: #a8a5e6;
-    --background: #f0f2f5;
-    --text: #2d3436;
-    --shadow: 8px 8px 16px #d9d9d9, 
-             -8px -8px 16px #ffffff;
-}
+/* style.css */
+/* Vorherige Styles hier einfügen */
 
-body {
-    font-family: 'Segoe UI', system-ui;
-    background: var(--background);
-    color: var(--text);
-    margin: 0;
-    padding: 2rem;
-    min-height: 100vh;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.header {
-    text-align: center;
-    margin-bottom: 3rem;
-    padding: 2rem;
-    background: linear-gradient(135deg, var(--primary), #4b4bff);
-    color: white;
-    border-radius: 1.5rem;
-    box-shadow: var(--shadow);
-}
-
-.header h1 {
-    font-size: 2.5rem;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-}
-
-.tagline {
-    font-size: 1.1rem;
-    opacity: 0.9;
-}
-
-.upload-card {
-    display: grid;
-    grid-template-columns: 1fr 2fr;
-    gap: 2rem;
-    background: var(--background);
-    border-radius: 1.5rem;
-    padding: 2rem;
-    box-shadow: var(--shadow);
-}
-
-.drop-zone {
-    border: 2px dashed var(--primary);
-    border-radius: 1rem;
-    padding: 2rem;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s;
+/* Neue Upload Status Styles */
+.upload-status {
     position: relative;
+    min-height: 200px;
+}
+
+.file-preview {
+    display: none;
+    align-items: center;
     background: rgba(108,92,231,0.05);
-}
-
-.drop-zone:hover {
-    transform: translateY(-3px);
-    border-color: var(--secondary);
-}
-
-.drop-zone i {
-    font-size: 3rem;
-    color: var(--primary);
-    margin-bottom: 1rem;
-}
-
-#audioInput {
-    opacity: 0;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    cursor: pointer;
-}
-
-.lyrics-box {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-#lyricsInput {
-    width: 100%;
-    height: 300px;
+    border: 2px solid var(--primary);
+    border-radius: 1rem;
     padding: 1.5rem;
+    margin-bottom: 2rem;
+    animation: slideIn 0.3s ease;
+}
+
+.file-preview.active {
+    display: flex;
+}
+
+.file-preview i {
+    font-size: 2.5rem;
+    color: var(--primary);
+    margin-right: 1.5rem;
+}
+
+.file-info {
+    flex-grow: 1;
+}
+
+.file-info span {
+    display: block;
+}
+
+#fileName {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.file-size {
+    color: var(--text);
+    opacity: 0.7;
+    font-size: 0.9em;
+}
+
+.btn-remove {
+    background: none;
     border: none;
-    border-radius: 1rem;
-    background: var(--background);
-    box-shadow: inset 5px 5px 10px #d9d9d9, 
-                inset -5px -5px 10px #ffffff;
-    resize: none;
-    font-family: monospace;
-    transition: all 0.3s;
+    color: #ff7675;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    margin-left: 1rem;
 }
 
-#lyricsInput:focus {
-    outline: none;
-    box-shadow: inset 8px 8px 16px #d9d9d9, 
-                inset -8px -8px 16px #ffffff;
+.btn-remove:hover {
+    color: #d63031;
 }
 
-.btn-primary {
+.drop-zone.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.btn-browse {
     background: var(--primary);
     color: white;
     border: none;
-    padding: 1rem 2rem;
+    padding: 0.8rem 2rem;
     border-radius: 0.8rem;
     cursor: pointer;
-    font-size: 1.1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
     transition: all 0.3s;
-    box-shadow: var(--shadow);
 }
 
-.btn-primary:hover {
-    transform: translateY(-2px);
+.btn-browse:hover {
     background: #5b4bc4;
-}
-
-.visualizer {
-    margin-top: 2rem;
-    height: 120px;
-    border-radius: 1rem;
-    box-shadow: var(--shadow);
-}
-
-.result-box {
-    margin-top: 2rem;
-    padding: 2rem;
-    background: var(--background);
-    border-radius: 1.5rem;
-    box-shadow: var(--shadow);
-}
-
-.btn-download {
-    background: #00b894;
-    color: white;
-    padding: 1rem 2.5rem;
-    border-radius: 0.8rem;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.8rem;
-    transition: all 0.3s;
-    box-shadow: var(--shadow);
-}
-
-.btn-download:hover {
-    transform: translateY(-2px);
-    background: #00a383;
-}
-
-.status-bar {
-    margin-top: 2rem;
-    padding: 1rem;
-    background: rgba(255,255,255,0.8);
-    border-radius: 0.8rem;
-}
-
-.progress {
-    height: 8px;
-    background: #eee;
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.progress::after {
-    content: '';
-    display: block;
-    width: 0%;
-    height: 100%;
-    background: var(--primary);
-    transition: width 0.3s ease;
-}
-
-@media (max-width: 768px) {
-    .upload-card {
-        grid-template-columns: 1fr;
-    }
 }
