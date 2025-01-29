@@ -1,150 +1,93 @@
-:root {
-    --primary: #6c5ce7;
-    --danger: #ff4757;
-    --background: #f8f9fa;
-    --text: #2d3436;
-}
+/* style.css */
+/* Behalte deine bestehenden Styles und füge diese hinzu */
 
-body {
-    font-family: 'Segoe UI', sans-serif;
-    background: var(--background);
-    margin: 0;
-    padding: 2rem;
-    min-height: 100vh;
-}
-
-.container {
-    max-width: 800px;
-    margin: 0 auto;
-}
-
-.upload-container {
-    position: relative;
-    border: 2px dashed var(--primary);
+.editor-container {
+    margin-top: 2rem;
+    background: white;
     border-radius: 15px;
     padding: 2rem;
-    transition: all 0.3s;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
 }
 
-.file-preview {
-    display: none;
-    align-items: center;
-    justify-content: space-between;
-    background: white;
-    padding: 1.5rem;
+.waveform {
+    height: 120px;
+    margin-bottom: 2rem;
     border-radius: 10px;
-    box-shadow: 0 2px 15px rgba(0,0,0,0.1);
-    margin-bottom: 1rem;
-    animation: slideIn 0.3s ease;
+    overflow: hidden;
 }
 
-.file-preview.active {
-    display: flex;
+.lyrics-box textarea {
+    width: 100%;
+    height: 300px;
+    padding: 1.5rem;
+    border: 2px solid #eee;
+    border-radius: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    line-height: 1.6;
+    resize: vertical;
 }
 
-.file-info {
+.controls {
+    margin-top: 2rem;
+}
+
+.btn-process {
+    background: #6c5ce7;
+    color: white;
+    padding: 1.2rem 2.5rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    transition: transform 0.3s;
     display: flex;
     align-items: center;
     gap: 1rem;
 }
 
-.file-info i {
-    font-size: 2rem;
-    color: var(--primary);
+.btn-process:hover {
+    transform: translateY(-2px);
 }
 
-#fileName {
-    font-weight: 600;
-    color: var(--text);
+.progress {
+    height: 8px;
+    background: #eee;
+    border-radius: 4px;
+    margin-top: 1rem;
+    overflow: hidden;
 }
 
-.file-size {
-    color: #666;
-    font-size: 0.9em;
+.progress-fill {
+    width: 0%;
+    height: 100%;
+    background: #6c5ce7;
+    transition: width 0.3s ease;
 }
 
-.btn-remove {
-    background: var(--danger);
+.result-container {
+    margin-top: 3rem;
+    text-align: center;
+}
+
+.btn-download {
+    background: #00b894;
     color: white;
+    padding: 1.2rem 3rem;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 16px;
+}
+
+.btn-reset {
+    background: #ff7675;
+    color: white;
+    padding: 1.2rem 2rem;
     border: none;
-    padding: 0.8rem 1.2rem;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.3s;
-}
-
-.btn-remove:hover {
-    background: #ff6b81;
-}
-
-.drop-zone {
-    position: relative;
-    min-height: 150px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-}
-
-.drop-zone.disabled {
-    pointer-events: none;
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-#fileInput {
-    opacity: 0;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    cursor: pointer;
-}
-
-.upload-prompt {
-    text-align: center;
-    color: var(--primary);
-}
-
-.upload-prompt i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-}
-
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    border: 0;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@media (max-width: 480px) {
-    .container {
-        padding: 1rem;
-    }
-    
-    .file-info {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .btn-remove {
-        padding: 0.6rem 1rem;
-    }
+    margin-left: 1rem;
 }
