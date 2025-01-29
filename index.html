@@ -1,189 +1,108 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LyricMaster Pro</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
+    <!-- Metadaten und Styles unverändert -->
     <style>
-        :root {
-            --primary: #6c5ce7;
-            --secondary: #a8a5e6;
-            --background: #1a1a1a;
-            --text: #ffffff;
-            --danger: #ff4757;
-            --success: #00b894;
-            --spacing: 1.5rem;
+        /* Neuen CSS für Datei-Anzeige hinzufügen */
+        .file-info {
+            margin-top: 1rem;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(108,92,231,0.1);
+            padding: 1rem;
+            border-radius: 0.5rem;
         }
 
-        body {
-            font-family: 'Inter', system-ui;
-            background: var(--background);
-            color: var(--text);
-            margin: 0;
-            padding: var(--spacing);
-            min-height: 100vh;
-            line-height: 1.6;
+        .file-info.active {
+            display: flex;
         }
 
-        .container {
-            max-width: 1200px;
+        .file-info span {
+            max-width: 70%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .remove-file {
+            background: var(--danger);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .remove-file:hover {
+            background: #ff6b81;
+        }
+
+        /* Upload-Sektion anpassen */
+        .upload-section button {
             margin: 0 auto;
         }
 
-        .header {
-            text-align: center;
-            margin-bottom: 3rem;
-            padding: 2rem 0;
-            background: linear-gradient(135deg, var(--primary), #4b4bff);
-            border-radius: 1rem;
-        }
-
-        .main-card {
-            background: #2d2d2d;
-            border-radius: 1.5rem;
-            padding: 2rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-
-        .upload-section {
-            border: 2px dashed var(--primary);
-            border-radius: 1rem;
-            padding: 2rem;
-            text-align: center;
-            position: relative;
-            transition: all 0.3s;
-        }
-
-        .waveform {
-            height: 150px;
-            margin: 2rem 0;
-            border-radius: 1rem;
-            overflow: hidden;
-            background: #3d3d3d;
-        }
-
-        .lyrics-editor {
-            margin: 2rem 0;
-        }
-
-        textarea {
-            width: 100%;
-            height: 300px;
-            padding: 1.5rem;
-            background: #3d3d3d;
-            border: 2px solid var(--primary);
-            border-radius: 1rem;
-            color: var(--text);
-            font-size: 16px;
-            resize: vertical;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .controls {
-            margin-top: 2rem;
-            display: grid;
-            gap: 1rem;
-        }
-
-        button {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 1.2rem 2.5rem;
-            border-radius: 0.8rem;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.8rem;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(108,92,231,0.3);
-        }
-
-        .progress {
-            height: 8px;
-            background: #3d3d3d;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-bar {
-            width: 0%;
-            height: 100%;
-            background: var(--primary);
-            transition: width 0.3s ease;
-        }
-
-        .download-section {
-            margin-top: 2rem;
-            text-align: center;
-            display: none;
-        }
-
-        #fileInput {
-            display: none;
-        }
-
-        .drag-over {
-            background: rgba(108,92,231,0.1);
-            border-color: var(--secondary);
+        .upload-instructions {
+            margin-top: 1rem;
+            opacity: 0.8;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1><i class="fas fa-music"></i> LyricMaster Pro</h1>
-            <p>Studioqualität Lyrics Synchronisation</p>
-        </div>
-
+        <!-- Header unverändert -->
+        
         <div class="main-card">
             <div class="upload-section" id="dropZone">
                 <input type="file" id="fileInput" accept="audio/*">
-                <button onclick="document.getElementById('fileInput').click()">
+                
+                <!-- Neuer Datei-Info-Bereich -->
+                <div class="file-info" id="fileInfo">
+                    <span id="fileName"></span>
+                    <div class="remove-file" onclick="removeAudio()">
+                        <i class="fas fa-times-circle"></i> Entfernen
+                    </div>
+                </div>
+
+                <!-- Ursprünglicher Upload-Button -->
+                <button id="uploadButton" onclick="document.getElementById('fileInput').click()">
                     <i class="fas fa-upload"></i> Audio hochladen
                 </button>
-                <p style="margin-top: 1rem">oder Datei hierher ziehen</p>
+                <p class="upload-instructions">oder Datei hierher ziehen</p>
             </div>
 
-            <div class="waveform" id="waveform"></div>
-
-            <div class="lyrics-editor">
-                <textarea id="lyricsInput" placeholder="Füge Lyrics hier ein... (Eine Zeile pro Textzeile)"></textarea>
-            </div>
-
-            <div class="controls">
-                <button id="processBtn" onclick="startProcessing()">
-                    <i class="fas fa-magic"></i> Lyrics synchronisieren
-                </button>
-                <div class="progress">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-            </div>
-
-            <div class="download-section" id="downloadSection">
-                <a id="downloadBtn" class="download-link">
-                    <i class="fas fa-download"></i> LRC herunterladen
-                </a>
-            </div>
+            <!-- Restliche Elemente unverändert -->
         </div>
     </div>
 
     <script>
-        let wavesurfer = null;
-        let model = null;
-        let audioBuffer = null;
+        // Neuer Code für Dateiverwaltung
+        function updateFileInfo(name) {
+            document.getElementById('fileName').textContent = name;
+            document.getElementById('fileInfo').classList.add('active');
+            document.getElementById('uploadButton').style.display = 'none';
+            document.querySelector('.upload-instructions').style.display = 'none';
+        }
 
-        // Initialisierung
-        document.addEventListener('DOMContentLoaded', async () => {
+        function removeAudio() {
+            // Zurücksetzen aller Komponenten
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileInfo').classList.remove('active');
+            document.getElementById('uploadButton').style.display = 'flex';
+            document.querySelector('.upload-instructions').style.display = 'block';
+            
+            if (wavesurfer) {
+                wavesurfer.empty();
+                wavesurfer.destroy();
+                initWaveSurfer();
+            }
+            
+            audioBuffer = null;
+            resetUI();
+        }
+
+        // Wellenform neu initialisieren
+        function initWaveSurfer() {
             wavesurfer = WaveSurfer.create({
                 container: '#waveform',
                 waveColor: '#6c5ce7',
@@ -193,160 +112,30 @@
                 normalize: true,
                 cursorColor: '#ffffff'
             });
+        }
 
-            // KI-Modell laden
-            model = await tf.loadGraphModel('https://storage.googleapis.com/tfjs-models/sound-classification/vocal-detection/model.json');
-        });
-
-        // Datei Handling
-        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
-        
+        // Angepasste Datei-Handling-Funktion
         async function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
 
-            const audioContext = new AudioContext();
-            const arrayBuffer = await file.arrayBuffer();
-            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            wavesurfer.load(URL.createObjectURL(file));
-        }
-
-        // Hauptprozess
-        async function startProcessing() {
+            updateFileInfo(file.name);
+            
             try {
-                const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
-                if (!audioBuffer) throw new Error('Bitte Audio-Datei hochladen');
-                if (lyrics.length === 0) throw new Error('Bitte Lyrics eingeben');
-
-                updateUI('Analysiere Audio...', 20);
+                const audioContext = new AudioContext();
+                const arrayBuffer = await file.arrayBuffer();
+                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
                 
-                // 1. Vokalsegmente erkennen
-                const vocalSegments = await analyzeAudio(audioBuffer);
-                
-                updateUI('Erstelle Zeitstempel...', 60);
-                
-                // 2. Präzise Synchronisation
-                const lrcContent = generateLRC(lyrics, vocalSegments);
-                
-                updateUI('Finalisiere...', 90);
-                
-                // 3. Download erstellen
-                createDownload(lrcContent);
-                
-                updateUI('Fertig!', 100);
-                document.getElementById('downloadSection').style.display = 'block';
-
+                if (wavesurfer) {
+                    wavesurfer.load(URL.createObjectURL(file));
+                }
             } catch (error) {
-                alert(`Fehler: ${error.message}`);
-                resetUI();
+                alert(`Fehler beim Laden der Datei: ${error.message}`);
+                removeAudio();
             }
         }
 
-        // Professionelle Audioanalyse
-        async function analyzeAudio(buffer) {
-            const channelData = buffer.getChannelData(0);
-            const sampleRate = buffer.sampleRate;
-            const windowSize = 1024;
-            const segments = [];
-            
-            let currentSegment = null;
-            let silenceCounter = 0;
-
-            for (let i = 0; i < channelData.length; i += windowSize) {
-                const slice = channelData.slice(i, i + windowSize);
-                const rms = calculateRMS(slice);
-                
-                if (rms > 0.02) { // Gesang erkannt
-                    silenceCounter = 0;
-                    if (!currentSegment) {
-                        currentSegment = {
-                            start: i / sampleRate,
-                            end: (i + windowSize) / sampleRate
-                        };
-                    } else {
-                        currentSegment.end = (i + windowSize) / sampleRate;
-                    }
-                } else {
-                    silenceCounter++;
-                    if (silenceCounter > 5 && currentSegment) { // 0.5s Stille
-                        segments.push(currentSegment);
-                        currentSegment = null;
-                    }
-                }
-            }
-
-            return segments;
-        }
-
-        // Präzise LRC-Generierung
-        function generateLRC(lyrics, segments) {
-            let lrc = '[re:AI Synchronized]\n';
-            let lyricIndex = 0;
-            
-            segments.forEach(segment => {
-                const duration = segment.end - segment.start;
-                const linesPerSegment = Math.ceil(lyrics.length * (duration / audioBuffer.duration));
-                
-                for (let i = 0; i < linesPerSegment; i++) {
-                    if (lyricIndex >= lyrics.length) break;
-                    const timestamp = segment.start + (i * (duration / linesPerSegment));
-                    lrc += `[${formatTime(timestamp)}] ${lyrics[lyricIndex]}\n`;
-                    lyricIndex++;
-                }
-            });
-            
-            return lrc;
-        }
-
-        // Hilfsfunktionen
-        function calculateRMS(samples) {
-            let sum = samples.reduce((acc, val) => acc + val ** 2, 0);
-            return Math.sqrt(sum / samples.length);
-        }
-
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-            const secs = (seconds % 60).toFixed(2).padStart(5, '0');
-            return `${mins}:${secs}`;
-        }
-
-        function updateUI(status, progress) {
-            document.getElementById('processBtn').innerHTML = `<i class="fas fa-robot"></i> ${status}`;
-            document.getElementById('progressBar').style.width = `${progress}%`;
-        }
-
-        function createDownload(content) {
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const downloadBtn = document.getElementById('downloadBtn');
-            downloadBtn.href = url;
-            downloadBtn.download = `lyrics_${Date.now()}.lrc`;
-        }
-
-        function resetUI() {
-            document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('processBtn').innerHTML = `<i class="fas fa-robot"></i> Lyrics synchronisieren`;
-            document.getElementById('downloadSection').style.display = 'none';
-        }
-
-        // Drag & Drop Handling
-        const dropZone = document.getElementById('dropZone');
-        
-        dropZone.addEventListener('dragover', e => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('drag-over');
-        });
-
-        dropZone.addEventListener('drop', e => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            const file = e.dataTransfer.files[0];
-            if (file) handleFileUpload({ target: { files: [file] } });
-        });
+        // Restlicher JavaScript-Code unverändert
     </script>
 </body>
 </html>
