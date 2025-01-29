@@ -3,70 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LyricMaster Pro</title>
+    <title>LyricSync Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
     <style>
-        /* BASIS-STYLES */
         :root {
             --primary: #6c5ce7;
             --secondary: #a8a5e6;
             --background: #f8f9fa;
             --text: #2d3436;
+            --danger: #ff4757;
         }
 
         body {
             font-family: 'Segoe UI', sans-serif;
+            background: var(--background);
             margin: 0;
             padding: 2rem;
-            background: var(--background);
+            min-height: 100vh;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
         }
 
-        /* UPLOAD SECTION (sichtbar) */
-        .upload-container {
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .upload-card {
             border: 2px dashed var(--primary);
             border-radius: 15px;
             padding: 2rem;
-            margin-bottom: 2rem;
+            position: relative;
+            transition: all 0.3s;
             background: white;
         }
 
-        /* WAVEFORM & EDITOR (jetzt sichtbar) */
-        .editor-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            margin-top: 2rem;
+        .file-preview {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 10px;
+            background: rgba(108,92,231,0.05);
         }
 
-        #waveform {
-            height: 150px;
+        .file-preview.active {
+            display: flex;
+        }
+
+        .waveform {
+            height: 120px;
+            margin: 2rem 0;
             border-radius: 10px;
-            background: #fff;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
 
         .lyrics-editor {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 2rem;
         }
 
-        #lyricsInput {
+        textarea {
             width: 100%;
-            height: 300px;
+            height: 200px;
             padding: 1rem;
             border: 2px solid var(--primary);
             border-radius: 10px;
             font-family: monospace;
+            resize: vertical;
         }
 
-        /* CONTROLS (sichtbar) */
         .controls {
             margin-top: 2rem;
             text-align: center;
@@ -80,102 +90,269 @@
             border-radius: 8px;
             cursor: pointer;
             font-size: 16px;
-            transition: transform 0.2s;
+            transition: all 0.3s;
         }
 
-        button:hover {
-            transform: translateY(-2px);
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
-        /* RESULT SECTION (sichtbar nach Verarbeitung) */
-        .result-section {
+        .download-section {
             margin-top: 2rem;
-            padding: 2rem;
-            background: white;
-            border-radius: 15px;
             text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .progress {
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s ease;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- UPLOAD SECTION -->
-        <div class="upload-container">
-            <input type="file" id="audioUpload" accept="audio/*">
+        <div class="header">
+            <h1><i class="fas fa-music"></i> LyricSync Pro</h1>
+            <p>Professionelle Lyrics-Synchronisation mit AI</p>
         </div>
 
-        <!-- WAVEFORM & EDITOR -->
-        <div class="editor-section">
-            <div id="waveform"></div>
-            <div class="lyrics-editor">
-                <textarea id="lyricsInput" placeholder="Lyrics hier einfügen..."></textarea>
+        <div class="upload-card">
+            <div class="file-preview" id="filePreview">
+                <div class="file-info">
+                    <i class="fas fa-file-audio"></i>
+                    <div>
+                        <span id="fileName"></span>
+                        <span class="file-size" id="fileSize"></span>
+                    </div>
+                </div>
+                <button class="btn-remove" onclick="removeFile()">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
-        </div>
+            
+            <div class="drop-zone" id="dropZone">
+                <input type="file" id="fileInput" accept="audio/*">
+                <div class="upload-prompt">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Audio-Datei hier ablegen oder klicken</p>
+                </div>
+            </div>
 
-        <!-- CONTROLS -->
-        <div class="controls">
-            <button onclick="startProcessing()">
-                <i class="fas fa-robot"></i> Lyrics synchronisieren
-            </button>
-        </div>
+            <div class="waveform" id="waveform"></div>
 
-        <!-- RESULT SECTION -->
-        <div class="result-section" id="resultSection">
-            <a id="downloadBtn" class="download-link">
-                <i class="fas fa-download"></i> LRC Datei herunterladen
-            </a>
+            <div class="lyrics-editor">
+                <textarea id="lyricsInput" placeholder="Füge Lyrics hier ein... (Eine Zeile pro Textzeile)"></textarea>
+            </div>
+
+            <div class="controls">
+                <button onclick="startProcessing()" id="processBtn">
+                    <i class="fas fa-robot"></i> Lyrics synchronisieren
+                </button>
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
+
+            <div class="download-section" id="downloadSection">
+                <a class="download-btn" id="downloadBtn">
+                    <i class="fas fa-download"></i> LRC-Datei herunterladen
+                </a>
+            </div>
         </div>
     </div>
 
-    <!-- SCRIPTS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
     <script>
-        // INITIALISIERE WAVEFORM
-        const wavesurfer = WaveSurfer.create({
-            container: '#waveform',
-            waveColor: '#6c5ce7',
-            progressColor: '#4b4bff',
-            height: 150,
-            responsive: true
+        let wavesurfer = null;
+        let audioContext = null;
+        let audioBuffer = null;
+
+        // Wavesurfer initialisieren
+        document.addEventListener('DOMContentLoaded', () => {
+            wavesurfer = WaveSurfer.create({
+                container: '#waveform',
+                waveColor: '#6c5ce7',
+                progressColor: '#4b4bff',
+                height: 120,
+                responsive: true
+            });
         });
 
-        // DATEIUPLOAD HANDLING
-        document.getElementById('audioUpload').addEventListener('change', function(e) {
+        // Datei-Handling
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        
+        async function handleFileUpload(e) {
             const file = e.target.files[0];
-            const url = URL.createObjectURL(file);
-            wavesurfer.load(url);
-        });
+            if (!file) return;
 
-        // VERARBEITUNGSFUNKTION
-        async function startProcessing() {
-            const lyrics = document.getElementById('lyricsInput').value.split('\n');
+            // UI aktualisieren
+            document.getElementById('filePreview').classList.add('active');
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+
+            // Audio analysieren
+            const arrayBuffer = await file.arrayBuffer();
+            audioContext = new AudioContext();
+            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
             
-            // SIMULIERTE KI-VERARBEITUNG
-            const lrcContent = generateLRC(lyrics, wavesurfer.getDuration());
-            
-            // DOWNLOAD LINK ERSTELLEN
-            const blob = new Blob([lrcContent], { type: 'text/plain' });
-            const downloadBtn = document.getElementById('downloadBtn');
-            downloadBtn.href = URL.createObjectURL(blob);
-            downloadBtn.download = 'synced_lyrics.lrc';
-            downloadBtn.style.display = 'inline-block';
+            // Wavesurfer laden
+            wavesurfer.load(URL.createObjectURL(file));
         }
 
-        // LRC GENERATOR (VEREINFACHT)
-        function generateLRC(lyrics, duration) {
-            let lrc = '';
-            const startOffset = 2; // 2 Sekunden Offset
+        async function startProcessing() {
+            try {
+                // Validierung
+                if (!audioBuffer) throw new Error('Keine Audio-Datei hochgeladen');
+                const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
+                if (lyrics.length === 0) throw new Error('Keine Lyrics eingegeben');
+
+                updateProgress(10, 'Analysiere Audio...');
+                
+                // Echte Audioanalyse
+                const vocalSegments = await analyzeAudio(audioBuffer);
+                
+                updateProgress(50, 'Synchronisiere Lyrics...');
+                const lrcContent = generateLRC(lyrics, vocalSegments);
+                
+                updateProgress(90, 'Erstelle Download...');
+                createDownload(lrcContent);
+                
+                updateProgress(100, 'Fertig!');
+                document.getElementById('downloadSection').style.display = 'block';
+
+            } catch (error) {
+                alert(error.message);
+                updateProgress(0, '');
+            }
+        }
+
+        // Echte Audioanalyse mit Web Audio API
+        async function analyzeAudio(buffer) {
+            const channelData = buffer.getChannelData(0);
+            const segmentDuration = 0.1; // 100ms Segmente
+            const windowSize = Math.floor(buffer.sampleRate * segmentDuration);
+            const segments = [];
+
+            let currentSegment = null;
+            let silenceDuration = 0;
+
+            for (let i = 0; i < channelData.length; i += windowSize) {
+                const slice = channelData.slice(i, i + windowSize);
+                const rms = calculateRMS(slice);
+
+                if (rms > 0.02) { // Schwellenwert für Gesang
+                    if (!currentSegment) {
+                        currentSegment = {
+                            start: i / buffer.sampleRate,
+                            end: (i + windowSize) / buffer.sampleRate
+                        };
+                    } else {
+                        currentSegment.end = (i + windowSize) / buffer.sampleRate;
+                    }
+                    silenceDuration = 0;
+                } else {
+                    silenceDuration += segmentDuration;
+                    if (currentSegment && silenceDuration > 0.5) { // 0.5s Stille beendet Segment
+                        segments.push(currentSegment);
+                        currentSegment = null;
+                    }
+                }
+            }
+
+            return segments;
+        }
+
+        function generateLRC(lyrics, segments) {
+            let lrc = '[re:AI-generated]\n';
+            let lineIndex = 0;
             
-            lyrics.forEach((line, index) => {
-                const time = startOffset + (index * (duration / lyrics.length));
-                const minutes = Math.floor(time / 60).toString().padStart(2, '0');
-                const seconds = (time % 60).toFixed(2).padStart(5, '0');
-                lrc += `[${minutes}:${seconds}] ${line}\n`;
+            segments.forEach(segment => {
+                const duration = segment.end - segment.start;
+                const linesPerSegment = Math.ceil(lyrics.length * (duration / audioBuffer.duration));
+                
+                for (let i = 0; i < linesPerSegment; i++) {
+                    if (lineIndex >= lyrics.length) break;
+                    const time = segment.start + (i * (duration / linesPerSegment));
+                    lrc += `[${formatTime(time)}] ${lyrics[lineIndex]}\n`;
+                    lineIndex++;
+                }
             });
             
             return lrc;
         }
+
+        // Hilfsfunktionen
+        function calculateRMS(samples) {
+            let sum = 0;
+            for (let i = 0; i < samples.length; i++) {
+                sum += samples[i] ** 2;
+            }
+            return Math.sqrt(sum / samples.length);
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toFixed(2).padStart(5, '0');
+            return `${mins}:${secs}`;
+        }
+
+        function formatFileSize(bytes) {
+            const units = ['Bytes', 'KB', 'MB', 'GB'];
+            if (bytes == 0) return '0 Bytes';
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + units[i];
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('processBtn').innerHTML = `<i class="fas fa-robot"></i> ${text}`;
+        }
+
+        function createDownload(content) {
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const downloadBtn = document.getElementById('downloadBtn');
+            downloadBtn.href = url;
+            downloadBtn.download = `synced_lyrics_${Date.now()}.lrc`;
+        }
+
+        function removeFile() {
+            document.getElementById('filePreview').classList.remove('active');
+            document.getElementById('fileInput').value = '';
+            wavesurfer.empty();
+            audioBuffer = null;
+            document.getElementById('downloadSection').style.display = 'none';
+            updateProgress(0, 'Lyrics synchronisieren');
+        }
+
+        // Drag & Drop Handling
+        const dropZone = document.getElementById('dropZone');
+        
+        dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = 'rgba(108,92,231,0.1)';
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.backgroundColor = '';
+        });
+
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '';
+            const file = e.dataTransfer.files[0];
+            if (file) handleFileUpload({ target: { files: [file] } });
+        });
     </script>
 </body>
 </html>
