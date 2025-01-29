@@ -7,7 +7,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
+    <!-- FFT Bibliothek -->
+    <script src="https://cdn.jsdelivr.net/npm/fft.js@0.0.4/lib/fft.js"></script>
     <style>
+        /* Behalte alle vorherigen Styles bei */
         :root {
             --primary: #6c5ce7;
             --secondary: #a8a5e6;
@@ -142,6 +145,9 @@
         let model = null;
         let audioBuffer = null;
 
+        // FFT Initialisierung
+        const FFT = require('fft.js');
+
         // Initialisierung
         document.addEventListener('DOMContentLoaded', async () => {
             wavesurfer = WaveSurfer.create({
@@ -207,16 +213,30 @@
         }
 
         function createSpectrogram(buffer) {
-            // Professionelle Spektrogramm-Erstellung
             const fftSize = 2048;
             const channelData = buffer.getChannelData(0);
             const spectrogram = [];
             
+            const fft = new FFT(fftSize);
+            
             for (let i = 0; i < channelData.length; i += fftSize) {
-                const slice = channelData.slice(i, i + fftSize);
-                const fft = new FFT(fftSize);
-                fft.run(slice);
-                spectrogram.push(fft.spectrum);
+                const input = new Array(fftSize*2).fill(0);
+                const output = new Array(fftSize*2);
+                
+                // Daten in komplexes Format kopieren
+                for (let j = 0; j < fftSize; j++) {
+                    input[2*j] = channelData[i + j] || 0;
+                    input[2*j + 1] = 0;
+                }
+                
+                fft.transform(output, input);
+                const magnitudes = [];
+                for (let j = 0; j < fftSize; j++) {
+                    const real = output[2*j];
+                    const imag = output[2*j + 1];
+                    magnitudes.push(Math.sqrt(real*real + imag*imag));
+                }
+                spectrogram.push(magnitudes);
             }
             
             return tf.tensor3d([spectrogram]);
@@ -224,21 +244,23 @@
 
         function processPrediction(prediction, duration) {
             const segments = [];
-            const stepSize = 0.1; // 100ms Schritte
+            const stepSize = 0.1;
             let currentSegment = null;
 
-            prediction.data().forEach((value, index) => {
-                const time = index * stepSize;
-                if (value > 0.95) { // Hohe Genauigkeit
-                    if (!currentSegment) {
-                        currentSegment = { start: time, end: time };
-                    } else {
-                        currentSegment.end = time;
+            prediction.data().then(data => {
+                data.forEach((value, index) => {
+                    const time = index * stepSize;
+                    if (value > 0.95) {
+                        if (!currentSegment) {
+                            currentSegment = { start: time, end: time };
+                        } else {
+                            currentSegment.end = time;
+                        }
+                    } else if (currentSegment) {
+                        segments.push(currentSegment);
+                        currentSegment = null;
                     }
-                } else if (currentSegment) {
-                    segments.push(currentSegment);
-                    currentSegment = null;
-                }
+                });
             });
 
             return segments;
