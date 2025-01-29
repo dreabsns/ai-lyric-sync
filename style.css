@@ -1,20 +1,41 @@
 /* style.css */
-/* Vorherige Styles hier einfügen */
+:root {
+    --primary: #6c5ce7;
+    --danger: #ff4757;
+    --background: #f8f9fa;
+    --text: #2d3436;
+}
 
-/* Neue Upload Status Styles */
-.upload-status {
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: var(--background);
+    margin: 0;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.upload-container {
     position: relative;
-    min-height: 200px;
+    border: 2px dashed var(--primary);
+    border-radius: 15px;
+    padding: 2rem;
+    transition: all 0.3s;
 }
 
 .file-preview {
     display: none;
     align-items: center;
-    background: rgba(108,92,231,0.05);
-    border: 2px solid var(--primary);
-    border-radius: 1rem;
+    justify-content: space-between;
+    background: white;
     padding: 1.5rem;
-    margin-bottom: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
     animation: slideIn 0.3s ease;
 }
 
@@ -22,71 +43,77 @@
     display: flex;
 }
 
-.file-preview i {
-    font-size: 2.5rem;
-    color: var(--primary);
-    margin-right: 1.5rem;
-}
-
 .file-info {
-    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
-.file-info span {
-    display: block;
+.file-info i {
+    font-size: 2rem;
+    color: var(--primary);
 }
 
 #fileName {
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    color: var(--text);
 }
 
 .file-size {
-    color: var(--text);
-    opacity: 0.7;
+    color: #666;
     font-size: 0.9em;
 }
 
 .btn-remove {
-    background: none;
+    background: var(--danger);
+    color: white;
     border: none;
-    color: #ff7675;
-    font-size: 1.2rem;
+    padding: 0.8rem 1.2rem;
+    border-radius: 8px;
     cursor: pointer;
-    padding: 0.5rem;
-    margin-left: 1rem;
+    transition: all 0.3s;
 }
 
 .btn-remove:hover {
-    color: #d63031;
+    background: #ff6b81;
 }
 
-.drop-zone.disabled {
-    opacity: 0.5;
-    pointer-events: none;
+.drop-zone {
+    position: relative;
+    min-height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+#fileInput {
+    opacity: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+.upload-prompt {
+    text-align: center;
+    color: var(--primary);
+}
+
+.upload-prompt i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
 }
 
 @keyframes slideIn {
     from {
         opacity: 0;
-        transform: translateY(20px);
+        transform: translateY(-20px);
     }
     to {
         opacity: 1;
         transform: translateY(0);
     }
-}
-
-.btn-browse {
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 0.8rem 2rem;
-    border-radius: 0.8rem;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.btn-browse:hover {
-    background: #5b4bc4;
 }
