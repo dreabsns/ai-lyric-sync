@@ -3,23 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Lyric Syncer</title>
+    <title>Pro Lyric Sync</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>🎤 AI Lyrics Synchronizer</h1>
+        <h1>🎤 Pro Lyric Synchronizer</h1>
         
-        <div class="upload-section">
-            <input type="file" id="audioInput" accept="audio/*">
-            <textarea id="lyricsInput" placeholder="Lyrics hier einfügen..."></textarea>
+        <div class="upload-box">
+            <input type="file" id="audioUpload" accept="audio/*">
+            <label for="audioUpload">MP3/WAV hochladen</label>
         </div>
 
-        <button onclick="startProcessing()">Jetzt synchronisieren 🤖</button>
-        
-        <div id="progressBar"></div>
-        <a id="downloadBtn" hidden>LRC herunterladen ⬇️</a>
+        <textarea id="lyricsInput" placeholder="Lyrics hier einfügen... (Zeilenumbruch pro Satz)"></textarea>
+
+        <div class="controls">
+            <button onclick="startProcessing()">Start AI Sync</button>
+            <div id="progress"></div>
+        </div>
+
+        <div id="result" hidden>
+            <a id="downloadBtn">Download LRC</a>
+            <div id="waveform"></div>
+        </div>
     </div>
 
     <script src="script.js"></script>
