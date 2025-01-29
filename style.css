@@ -1,11 +1,13 @@
 :root {
-    --primary: #6c5ce7;
-    --background: #f8f9fa;
+    --primary: #2ecc71;
+    --secondary: #3498db;
+    --background: #2c3e50;
 }
 
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Arial', sans-serif;
     background: var(--background);
+    color: white;
     margin: 0;
     padding: 20px;
 }
@@ -16,25 +18,33 @@ body {
 }
 
 h1 {
-    color: var(--primary);
     text-align: center;
+    color: var(--primary);
+    margin-bottom: 30px;
 }
 
-.upload-box {
-    border: 2px dashed var(--primary);
+.upload-section {
+    display: grid;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+#audioInput {
+    padding: 15px;
+    border: 2px dashed var(--secondary);
     border-radius: 10px;
-    padding: 20px;
-    margin: 20px 0;
     text-align: center;
 }
 
 #lyricsInput {
     width: 100%;
     height: 200px;
-    padding: 10px;
-    margin: 10px 0;
-    border: 1px solid var(--primary);
-    border-radius: 5px;
+    padding: 15px;
+    border: 2px solid var(--secondary);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.1);
+    color: white;
+    resize: vertical;
 }
 
 button {
@@ -43,22 +53,31 @@ button {
     background: var(--primary);
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 10px;
     cursor: pointer;
+    font-size: 16px;
+    transition: transform 0.3s;
 }
 
-.loader {
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid var(--primary);
-    border-radius: 50%;
-    width: 30px;
-    height: 30px;
-    animation: spin 1s linear infinite;
-    margin: 20px auto;
-    display: none;
+button:hover {
+    transform: scale(1.02);
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+#progressBar {
+    width: 0%;
+    height: 5px;
+    background: var(--secondary);
+    margin-top: 20px;
+    transition: width 0.3s;
+}
+
+#downloadBtn {
+    display: block;
+    margin-top: 20px;
+    padding: 15px;
+    background: var(--primary);
+    color: white;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 10px;
 }
