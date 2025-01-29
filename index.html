@@ -1,37 +1,53 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LyricSync Pro</title>
+    <title>LyricMaster Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
 </head>
 <body>
     <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-music"></i> LyricMaster Pro</h1>
+            <p class="tagline">Professionelle Lyrics-Synchronisation</p>
+        </div>
+
+        <!-- Upload Section -->
         <div class="upload-container" id="uploadContainer">
-            <!-- Dateivorschau -->
-            <div class="file-preview" id="filePreview">
-                <div class="file-info">
-                    <i class="fas fa-file-audio"></i>
-                    <div>
-                        <span id="fileName"></span>
-                        <span class="file-size" id="fileSize"></span>
+            <!-- Behalte dein bestehendes Upload-System -->
+        </div>
+
+        <!-- Lyrics Editor -->
+        <div class="editor-container">
+            <div class="waveform" id="waveform"></div>
+            
+            <div class="lyrics-box">
+                <textarea id="lyricsInput" placeholder="Füge Lyrics hier ein... (Ein Textzeile pro Zeile)"></textarea>
+                <div class="controls">
+                    <button class="btn-process" onclick="startProcessing()">
+                        <i class="fas fa-robot"></i> Mit KI synchronisieren
+                    </button>
+                    <div class="progress" id="progressBar">
+                        <div class="progress-fill"></div>
                     </div>
                 </div>
-                <button class="btn-remove" onclick="removeFile()" aria-label="Datei entfernen">
-                    <i class="fas fa-trash"></i>
-                    <span class="sr-only">Datei entfernen</span>
-                </button>
             </div>
+        </div>
 
-            <!-- Upload-Bereich -->
-            <div class="drop-zone" id="dropZone">
-                <input type="file" id="fileInput" accept="audio/*">
-                <div class="upload-prompt">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <p>Audio-Datei hier ablegen oder klicken</p>
-                </div>
+        <!-- Result Section -->
+        <div class="result-container" id="resultContainer" hidden>
+            <div class="download-box">
+                <a class="btn-download" id="downloadBtn">
+                    <i class="fas fa-download"></i> LRC Datei herunterladen
+                </a>
+                <button class="btn-reset" onclick="resetApp()">
+                    <i class="fas fa-redo"></i> Neustart
+                </button>
             </div>
         </div>
     </div>
