@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -11,7 +10,7 @@
 <body>
     <div class="container">
         <div class="upload-container" id="uploadContainer">
-            <!-- Aktive Datei-Anzeige -->
+            <!-- Dateivorschau -->
             <div class="file-preview" id="filePreview">
                 <div class="file-info">
                     <i class="fas fa-file-audio"></i>
@@ -20,8 +19,9 @@
                         <span class="file-size" id="fileSize"></span>
                     </div>
                 </div>
-                <button class="btn-remove" onclick="removeFile()">
+                <button class="btn-remove" onclick="removeFile()" aria-label="Datei entfernen">
                     <i class="fas fa-trash"></i>
+                    <span class="sr-only">Datei entfernen</span>
                 </button>
             </div>
 
