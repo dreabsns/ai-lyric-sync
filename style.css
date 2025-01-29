@@ -1,6 +1,7 @@
 :root {
     --primary: #6c5ce7;
     --background: #f8f9fa;
+    --silence: #ff7675;
 }
 
 body {
@@ -38,6 +39,7 @@ h1 {
     border: 1px solid var(--primary);
     border-radius: 8px;
     resize: vertical;
+    font-family: monospace;
 }
 
 button {
@@ -63,4 +65,26 @@ button:hover {
     text-decoration: none;
     font-weight: bold;
     text-align: center;
+}
+
+.loader {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+    display: none;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.silence-marker {
+    color: var(--silence);
+    font-size: 0.8em;
+    margin: 5px 0;
 }
