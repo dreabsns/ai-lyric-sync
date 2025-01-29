@@ -1,62 +1,57 @@
 // script.js
-// Vorheriger Code hier
+const uploadContainer = document.getElementById('uploadContainer');
+const filePreview = document.getElementById('filePreview');
+const fileName = document.getElementById('fileName');
+const fileSize = document.getElementById('fileSize');
+const fileInput = document.getElementById('fileInput');
 
-async function handleAudioFile(file) {
-    try {
-        // UI Updates
-        document.getElementById('dropZone').classList.add('disabled');
-        document.getElementById('filePreview').classList.add('active');
-        document.getElementById('fileName').textContent = file.name;
-        document.getElementById('fileSize').textContent = formatFileSize(file.size);
-        
-        // Audio verarbeiten
-        const url = URL.createObjectURL(file);
-        await wavesurfer.load(url);
-        updateStatus('Audio geladen', 40);
-    } catch (error) {
-        showError('Audiofehler: ' + error.message);
+// Datei hochladen
+fileInput.addEventListener('change', handleFileSelect);
+uploadContainer.addEventListener('dragover', handleDragOver);
+uploadContainer.addEventListener('drop', handleFileDrop);
+
+function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) processFile(file);
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    uploadContainer.style.backgroundColor = 'rgba(108,92,231,0.1)';
+}
+
+function handleFileDrop(e) {
+    e.preventDefault();
+    uploadContainer.style.backgroundColor = '';
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+}
+
+function processFile(file) {
+    if (!file.type.startsWith('audio/')) {
+        alert('Bitte nur Audio-Dateien hochladen!');
+        return;
     }
+
+    // UI aktualisieren
+    filePreview.classList.add('active');
+    fileName.textContent = file.name;
+    fileSize.textContent = formatFileSize(file.size);
+    
+    // Dateiinput zurücksetzen für mögliche neue Uploads
+    fileInput.value = '';
+}
+
+function removeFile() {
+    // UI zurücksetzen
+    filePreview.classList.remove('active');
+    fileName.textContent = '';
+    fileSize.textContent = '';
 }
 
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    const units = ['Bytes', 'KB', 'MB', 'GB'];
+    const exponent = Math.floor(Math.log(bytes) / Math.log(1024));
+    return parseFloat((bytes / Math.pow(1024, exponent)).toFixed(2)) + ' ' + units[exponent];
 }
-
-function removeFile() {
-    // Reset UI
-    document.getElementById('filePreview').classList.remove('active');
-    document.getElementById('dropZone').classList.remove('disabled');
-    document.getElementById('audioInput').value = '';
-    wavesurfer.empty();
-    updateStatus('Bereit', 0);
-}
-
-// Event Listener für das versteckte Datei-Input
-document.querySelector('.btn-browse').addEventListener('click', () => {
-    document.getElementById('audioInput').click();
-});
-
-// Drag & Drop Handling
-document.getElementById('dropZone').addEventListener('dragover', (e) => {
-    if (!document.getElementById('filePreview').classList.contains('active')) {
-        e.preventDefault();
-        e.currentTarget.style.background = 'rgba(108,92,231,0.1)';
-    }
-});
-
-document.getElementById('dropZone').addEventListener('dragleave', (e) => {
-    e.currentTarget.style.background = '';
-});
-
-document.getElementById('dropZone').addEventListener('drop', async (e) => {
-    e.preventDefault();
-    if (!document.getElementById('filePreview').classList.contains('active')) {
-        const file = e.dataTransfer.files[0];
-        if (file) handleAudioFile(file);
-    }
-    e.currentTarget.style.background = '';
-});
