@@ -38,6 +38,7 @@
             padding: 2rem 0;
             background: linear-gradient(135deg, var(--primary), #4b4bff);
             border-radius: 1rem;
+            position: relative;
         }
 
         .main-card {
@@ -217,12 +218,24 @@
             margin-top: 1rem;
             display: none;
         }
+
+        .language-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--primary);
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1><i class="fas fa-music"></i> LyricMaster Pro</h1>
+            <div class="language-badge" id="languageBadge">Erkannte Sprache: ?</div>
             <p>Studioqualität Lyrics Synchronisation</p>
         </div>
 
@@ -294,6 +307,20 @@
             });
         });
 
+        function detectLanguage(text) {
+            const germanChars = /[äöüß]/i;
+            const englishCommon = /\b(the|and|you|that|ing)\b/i;
+            const germanCommon = /\b(und|der|die|das|ein)\b/i;
+
+            const hasGermanChars = germanChars.test(text);
+            const germanScore = (text.match(germanCommon) || []).length;
+            const englishScore = (text.match(englishCommon) || []).length;
+
+            if (hasGermanChars || germanScore > englishScore) return 'DE';
+            if (englishScore > germanScore) return 'EN';
+            return 'UNKNOWN';
+        }
+
         async function startProcessing() {
             try {
                 if (isProcessing) return;
@@ -303,14 +330,21 @@
                 if (!audioBuffer) throw new Error('Bitte Audio-Datei hochladen');
                 if (lyrics.length === 0) throw new Error('Bitte Lyrics eingeben');
 
+                // Spracherkennung
+                const language = detectLanguage(lyrics.join(' '));
+                const languageNames = { DE: 'Deutsch', EN: 'Englisch' };
+                document.getElementById('languageBadge').style.display = 'block';
+                document.getElementById('languageBadge').textContent = 
+                    `Erkannte Sprache: ${languageNames[language] || 'Unbekannt'}`;
+
                 updateUI('Analysiere Audio...', 20);
                 const frequencyData = await analyzeAudio(audioBuffer);
                 
-                updateUI('Erkenne Beats...', 40);
-                const beats = detectBeats(frequencyData, audioBuffer.sampleRate);
+                updateUI('Erkenne Patterns...', 40);
+                const beats = detectBeats(frequencyData, audioBuffer.sampleRate, language);
                 
-                updateUI('Synchronisiere...', 60);
-                const lrcContent = generateLRC(lyrics, beats, audioBuffer.duration);
+                updateUI('Optimiere Sync...', 60);
+                const lrcContent = generateLRC(lyrics, beats, audioBuffer.duration, language);
                 
                 createDownload(lrcContent);
                 updateUI('Fertig!', 100);
@@ -342,11 +376,11 @@
             return dataArray;
         }
 
-        function detectBeats(frequencyData, sampleRate) {
+        function detectBeats(frequencyData, sampleRate, language) {
             const beats = [];
-            const windowSize = Math.floor(sampleRate * 0.08);
+            const windowSize = Math.floor(sampleRate * (language === 'DE' ? 0.08 : 0.1));
             let avgEnergy = 0;
-            let dynamicThreshold = 1.5;
+            let dynamicThreshold = language === 'DE' ? 1.4 : 1.3;
             
             for (let i = 0; i < frequencyData.length; i += windowSize) {
                 const slice = frequencyData.slice(i, i + windowSize);
@@ -354,9 +388,9 @@
                 
                 if (currentEnergy > avgEnergy * dynamicThreshold) {
                     beats.push(i / sampleRate);
-                    dynamicThreshold = Math.max(1.3, dynamicThreshold * 0.95);
+                    dynamicThreshold = Math.max(1.2, dynamicThreshold * 0.95);
                 } else {
-                    dynamicThreshold = Math.min(2.0, dynamicThreshold * 1.05);
+                    dynamicThreshold = Math.min(1.8, dynamicThreshold * 1.05);
                 }
                 
                 avgEnergy = (avgEnergy + currentEnergy) / 2;
@@ -365,31 +399,30 @@
             return beats;
         }
 
-        function generateLRC(lyrics, beats, duration) {
+        function generateLRC(lyrics, beats, duration, language) {
             let lrc = '[re:AI Synchronized]\n';
-            const minInterval = 0.3;
+            const minInterval = language === 'DE' ? 0.4 : 0.3;
             
             const fileName = document.getElementById('fileName').textContent
                 .replace(/\.[^/.]+$/, "")
-                .replace(/[^a-z0-9äöüß]/gi, '_')
+                .replace(/[^\wäöüß-]/gi, '_')
                 .toLowerCase();
 
             let lastTime = 0;
             let beatIndex = 0;
             
             lyrics.forEach((line) => {
-                let bestBeat = beats[beatIndex];
-                while (beats[beatIndex + 1] && beats[beatIndex + 1] - lastTime < minInterval) {
-                    beatIndex++;
-                }
+                while (beatIndex < beats.length && beats[beatIndex] < lastTime) beatIndex++;
                 
-                const time = bestBeat || lastTime + minInterval;
+                let time = beats[beatIndex] || lastTime + minInterval;
+                time = Math.max(time, lastTime + minInterval);
+                time = Math.min(time, duration);
+                
                 lrc += `[${formatTime(time)}] ${line}\n`;
-                
                 lastTime = time;
                 beatIndex++;
             });
-            
+
             const downloadBtn = document.getElementById('downloadBtn');
             downloadBtn.download = `${fileName}.lrc`;
             
@@ -431,6 +464,7 @@
             wavesurfer.empty();
             audioBuffer = null;
             document.getElementById('playButton').style.display = 'none';
+            document.getElementById('languageBadge').style.display = 'none';
         }
 
         function updateUI(status, progress) {
@@ -443,7 +477,6 @@
             const url = URL.createObjectURL(blob);
             const downloadBtn = document.getElementById('downloadBtn');
             downloadBtn.href = url;
-            document.getElementById('downloadSection').style.display = 'block';
         }
 
         function resetUI() {
@@ -451,6 +484,7 @@
             document.getElementById('processBtn').innerHTML = 
                 `<i class="fas fa-robot"></i> Lyrics synchronisieren`;
             document.getElementById('downloadSection').style.display = 'none';
+            document.getElementById('languageBadge').style.display = 'none';
         }
 
         document.getElementById('fileInput').addEventListener('change', handleFileUpload);
