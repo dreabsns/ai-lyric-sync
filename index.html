@@ -199,24 +199,25 @@
             font-size: 0.9em;
         }
 
-        #playButton {
+        .play-controls {
             position: absolute;
             bottom: 10px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 0.8rem 1.5rem;
+            display: flex;
+            gap: 1rem;
             z-index: 10;
             display: none;
         }
 
-        #previewButton {
-            position: absolute;
-            bottom: 10px;
-            left: calc(50% + 100px);
-            transform: translateX(-50%);
+        #playButton, #previewButton {
+            position: static;
+            transform: none;
+            margin: 0;
             padding: 0.8rem 1.5rem;
-            z-index: 10;
-            display: none;
+        }
+
+        #previewButton {
             background: var(--success);
         }
 
@@ -413,12 +414,14 @@
             </div>
 
             <div class="waveform" id="waveform">
-                <button id="playButton" onclick="togglePlay()">
-                    <i class="fas fa-play"></i> Abspielen
-                </button>
-                <button id="previewButton" onclick="togglePreview()">
-                    <i class="fas fa-eye"></i> Vorschau
-                </button>
+                <div class="play-controls" id="playControls">
+                    <button id="playButton" onclick="togglePlay()">
+                        <i class="fas fa-play"></i> Abspielen
+                    </button>
+                    <button id="previewButton" onclick="togglePreview()">
+                        <i class="fas fa-eye"></i> Vorschau
+                    </button>
+                </div>
             </div>
 
             <div class="preview-container">
@@ -724,7 +727,7 @@
                         const audioContext = new AudioContext();
                         audioBuffer = await audioContext.decodeAudioData(e.target.result);
                         wavesurfer.load(URL.createObjectURL(file));
-                        document.getElementById('playButton').style.display = 'block';
+                        document.getElementById('playControls').style.display = 'flex';
                     } catch (error) {
                         showError('Fehler beim Verarbeiten der Audiodatei');
                         removeFile();
@@ -746,7 +749,7 @@
                 wavesurfer.empty();
                 audioBuffer = null;
                 lyricData = [];
-                document.getElementById('playButton').style.display = 'none';
+                document.getElementById('playControls').style.display = 'none';
                 document.getElementById('previewButton').style.display = 'none';
                 document.querySelector('.preview-container').style.display = 'none';
                 document.getElementById('languageBadge').style.display = 'none';
