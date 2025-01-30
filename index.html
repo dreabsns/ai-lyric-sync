@@ -229,9 +229,63 @@
             font-size: 0.9em;
             display: none;
         }
+
+        /* Error Popup Styles */
+        .error-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .error-content {
+            background: #2d2d2d;
+            padding: 2rem;
+            border-radius: 1rem;
+            max-width: 400px;
+            text-align: center;
+            position: relative;
+            border: 2px solid var(--danger);
+        }
+
+        .error-icon {
+            font-size: 3rem;
+            color: var(--danger);
+            margin-bottom: 1rem;
+        }
+
+        .error-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
     </style>
 </head>
 <body>
+    <!-- Error Popup -->
+    <div class="error-popup" id="errorPopup">
+        <div class="error-content">
+            <button class="error-close" onclick="closeError()">&times;</button>
+            <div class="error-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3>Fehler aufgetreten!</h3>
+            <p id="errorMessage"></p>
+            <button onclick="closeError()" style="margin-top:1rem;">Verstanden</button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1><i class="fas fa-music"></i> LyricMaster Pro</h1>
@@ -286,6 +340,16 @@
         let wavesurfer = null;
         let audioBuffer = null;
         let isProcessing = false;
+
+        // Error Handling Funktionen
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorPopup').style.display = 'flex';
+        }
+
+        function closeError() {
+            document.getElementById('errorPopup').style.display = 'none';
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             wavesurfer = WaveSurfer.create({
@@ -352,7 +416,7 @@
                 isProcessing = false;
 
             } catch (error) {
-                alert(`Fehler: ${error.message}`);
+                showError(error.message);
                 resetUI();
                 isProcessing = false;
             }
@@ -440,31 +504,50 @@
         }
 
         function handleFileUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+            try {
+                const file = e.target.files[0];
+                if (!file) return;
 
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileDisplay').style.display = 'flex';
-            document.getElementById('uploadButton').style.display = 'none';
+                if (!file.type.startsWith('audio/')) {
+                    throw new Error('Ungültiges Dateiformat. Bitte laden Sie eine Audio-Datei hoch.');
+                }
 
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const audioContext = new AudioContext();
-                audioBuffer = await audioContext.decodeAudioData(e.target.result);
-                wavesurfer.load(URL.createObjectURL(file));
-                document.getElementById('playButton').style.display = 'block';
-            };
-            reader.readAsArrayBuffer(file);
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileDisplay').style.display = 'flex';
+                document.getElementById('uploadButton').style.display = 'none';
+
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    try {
+                        const audioContext = new AudioContext();
+                        audioBuffer = await audioContext.decodeAudioData(e.target.result);
+                        wavesurfer.load(URL.createObjectURL(file));
+                        document.getElementById('playButton').style.display = 'block';
+                    } catch (error) {
+                        showError('Fehler beim Verarbeiten der Audiodatei');
+                        removeFile();
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+
+            } catch (error) {
+                showError(error.message);
+                removeFile();
+            }
         }
 
         function removeFile() {
-            document.getElementById('fileInput').value = '';
-            document.getElementById('fileDisplay').style.display = 'none';
-            document.getElementById('uploadButton').style.display = 'block';
-            wavesurfer.empty();
-            audioBuffer = null;
-            document.getElementById('playButton').style.display = 'none';
-            document.getElementById('languageBadge').style.display = 'none';
+            try {
+                document.getElementById('fileInput').value = '';
+                document.getElementById('fileDisplay').style.display = 'none';
+                document.getElementById('uploadButton').style.display = 'block';
+                wavesurfer.empty();
+                audioBuffer = null;
+                document.getElementById('playButton').style.display = 'none';
+                document.getElementById('languageBadge').style.display = 'none';
+            } catch (error) {
+                showError(error.message);
+            }
         }
 
         function updateUI(status, progress) {
@@ -487,6 +570,7 @@
             document.getElementById('languageBadge').style.display = 'none';
         }
 
+        // Event Listeners
         document.getElementById('fileInput').addEventListener('change', handleFileUpload);
 
         const dropZone = document.getElementById('dropZone');
@@ -504,6 +588,11 @@
             dropZone.classList.remove('drag-over');
             const file = e.dataTransfer.files[0];
             if (file) handleFileUpload({ target: { files: [file] } });
+        });
+
+        // Escape-Taste zum Schließen des Fehler-Popups
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeError();
         });
     </script>
 </body>
