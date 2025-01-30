@@ -197,6 +197,12 @@
         .hidden-audio {
             display: none;
         }
+
+        .error-message {
+            color: var(--danger);
+            margin-top: 1rem;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -219,6 +225,7 @@
                     <i class="fas fa-upload"></i> Audio hochladen
                 </button>
                 <p style="margin-top: 1rem">oder Datei hierher ziehen</p>
+                <div class="error-message" id="modelError"></div>
             </div>
 
             <div class="waveform" id="waveform">
@@ -248,8 +255,6 @@
         </div>
     </div>
 
-    <audio id="audioPlayer" class="hidden-audio"></audio>
-
     <script>
         let wavesurfer = null;
         let audioBuffer = null;
@@ -277,10 +282,14 @@
                 document.querySelector('#playButton i').classList.replace('fa-pause', 'fa-play');
             });
 
-            // Vosk-Modell laden
+            // Modell laden mit Wiederholungslogik
+            loadModelWithRetry(3);
+        });
+
+        async function loadModelWithRetry(retries) {
             try {
-                updateUI('Lade Spracherkennung...', 0);
-                const model = new Vosk.Model("https://alphacephei.com/vosk/models/vosk-model-small-de-0.15/model/");
+                updateUI('Lade multilinguales Modell...', 0);
+                const model = new Vosk.Model("https://alphacephei.com/vosk/models/vosk-model-small-multilingual-0.22/model/");
                 recognizer = new Vosk.Recognizer({
                     model: model,
                     sampleRate: 16000
@@ -288,32 +297,42 @@
                 isModelLoaded = true;
                 document.getElementById('processBtn').disabled = false;
                 updateUI('Bereit', 0);
+                document.getElementById('modelError').style.display = 'none';
             } catch (error) {
-                console.error('Fehler beim Laden der Spracherkennung:', error);
-                updateUI('Spracherkennung fehlgeschlagen', 0);
-                document.getElementById('processBtn').disabled = true;
-                setTimeout(() => resetUI(), 2000);
+                console.error('Modell-Fehler:', error);
+                if (retries > 0) {
+                    document.getElementById('modelError').textContent = 
+                        `Modell konnte nicht geladen werden (${4-retries}/3 Versuche)...`;
+                    document.getElementById('modelError').style.display = 'block';
+                    setTimeout(() => loadModelWithRetry(retries - 1), 2000);
+                } else {
+                    handleModelError();
+                }
             }
-        });
+        }
 
         async function startProcessing() {
             try {
                 if (!isModelLoaded) throw new Error('Spracherkennung nicht bereit');
                 
-                const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
+                const lyrics = document.getElementById('lyricsInput').value
+                    .split('\n')
+                    .filter(l => l.trim())
+                    .map(l => l.toLowerCase().replace(/[^\w\s]/g, ''));
+                
                 if (!audioBuffer) throw new Error('Bitte Audio-Datei hochladen');
                 if (lyrics.length === 0) throw new Error('Bitte Lyrics eingeben');
 
-                updateUI('Konvertiere Audio...', 10);
-                const audioData = await convertAudioForSTT(audioBuffer);
+                updateUI('Vorverarbeitung...', 10);
+                const audioData = await prepareAudio(audioBuffer);
 
-                updateUI('Transkribiere Text...', 30);
+                updateUI('Transkribiere...', 30);
                 const transcription = await transcribeAudio(audioData);
 
-                updateUI('Synchronisiere Lyrics...', 70);
-                const alignedLyrics = alignLyricsWithTranscription(lyrics, transcription.words);
+                updateUI('Synchronisiere...', 70);
+                const alignedLyrics = alignLyrics(lyrics, transcription.words);
 
-                updateUI('Erstelle LRC...', 90);
+                updateUI('Generiere LRC...', 90);
                 const lrcContent = generateLRC(alignedLyrics);
 
                 createDownload(lrcContent);
@@ -321,19 +340,19 @@
                 document.getElementById('downloadSection').style.display = 'block';
 
             } catch (error) {
-                alert(`Fehler: ${error.message}`);
+                showError(error.message);
                 resetUI();
             }
         }
 
-        async function convertAudioForSTT(buffer) {
+        async function prepareAudio(buffer) {
             const offlineCtx = new OfflineAudioContext(1, buffer.duration * 16000, 16000);
             const source = offlineCtx.createBufferSource();
             source.buffer = buffer;
             
-            const resampler = offlineCtx.createScriptProcessor(4096, 1, 1);
-            source.connect(resampler);
-            resampler.connect(offlineCtx.destination);
+            const processor = offlineCtx.createScriptProcessor(4096, 1, 1);
+            source.connect(processor);
+            processor.connect(offlineCtx.destination);
 
             return offlineCtx.startRendering().then(renderedBuffer => {
                 return renderedBuffer.getChannelData(0);
@@ -341,50 +360,52 @@
         }
 
         async function transcribeAudio(audioData) {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 const results = [];
                 
                 recognizer.onresult = (message) => {
                     const result = message.result;
                     results.push(result);
                     
-                    if (result.text !== "") {
-                        result.result.forEach(word => {
-                            wordTimings.push({
-                                word: word.word,
-                                start: word.start,
-                                end: word.end
-                            });
+                    result.result.forEach(word => {
+                        wordTimings.push({
+                            word: word.word.toLowerCase(),
+                            start: word.start,
+                            end: word.end
                         });
-                    }
-                };
-
-                recognizer.onend = () => {
-                    resolve({
-                        text: results.map(r => r.text).join(' '),
-                        words: wordTimings
                     });
                 };
 
-                const blockSize = 16000 * 0.2;
-                for (let i = 0; i < audioData.length; i += blockSize) {
-                    const block = audioData.subarray(i, i + blockSize);
-                    recognizer.acceptWaveform(block);
+                recognizer.onend = () => resolve({
+                    text: results.map(r => r.text).join(' '),
+                    words: wordTimings
+                });
+
+                recognizer.onerror = (err) => reject(new Error('Transkriptionsfehler'));
+
+                try {
+                    const blockSize = 16000 * 0.2;
+                    for (let i = 0; i < audioData.length; i += blockSize) {
+                        const block = audioData.subarray(i, i + blockSize);
+                        recognizer.acceptWaveform(block);
+                    }
+                    recognizer.end();
+                } catch (error) {
+                    reject(new Error('Audioübertragung fehlgeschlagen'));
                 }
-                recognizer.end();
             });
         }
 
-        function alignLyricsWithTranscription(lyrics, words) {
+        function alignLyrics(lyrics, words) {
             return lyrics.map((line) => {
-                const lineWords = line.toLowerCase().split(/\s+/);
+                const lineWords = line.split(/\s+/).filter(w => w);
                 let bestMatch = { score: 0, start: 0 };
 
                 for (let i = 0; i < words.length; i++) {
                     let score = 0;
                     for (let j = 0; j < lineWords.length; j++) {
                         if ((i + j) < words.length && 
-                            words[i + j].word.toLowerCase() === lineWords[j]) {
+                            words[i + j].word === lineWords[j]) {
                             score++;
                         }
                     }
@@ -419,13 +440,20 @@
             return lrc;
         }
 
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-            const secs = (seconds % 60).toFixed(2).padStart(5, '0');
-            return `${mins}:${secs}`;
+        function handleModelError() {
+            document.getElementById('modelError').textContent = 
+                'Modell konnte nicht geladen. Bitte Seite neu laden oder Internetverbindung prüfen.';
+            document.getElementById('modelError').style.display = 'block';
+            document.getElementById('processBtn').disabled = true;
+            updateUI('Modellfehler - Neu laden', 0);
         }
 
-        // Hilfsfunktionen
+        function showError(message) {
+            document.getElementById('processBtn').innerHTML = 
+                `<i class="fas fa-exclamation-circle"></i> ${message}`;
+            setTimeout(resetUI, 3000);
+        }
+
         function togglePlay() {
             wavesurfer.playPause();
         }
@@ -472,11 +500,18 @@
 
         function resetUI() {
             document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('processBtn').innerHTML = `<i class="fas fa-robot"></i> Lyrics synchronisieren`;
+            document.getElementById('processBtn').innerHTML = 
+                `<i class="fas fa-robot"></i> Lyrics synchronisieren`;
             document.getElementById('downloadSection').style.display = 'none';
         }
 
-        // Event Listener
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toFixed(2).padStart(5, '0');
+            return `${mins}:${secs}`;
+        }
+
+        // Event Listeners
         document.getElementById('fileInput').addEventListener('change', handleFileUpload);
 
         const dropZone = document.getElementById('dropZone');
