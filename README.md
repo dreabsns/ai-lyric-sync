@@ -1,1 +1,1 @@
-# lyric-sync-tool
+# lyricmaster-pro
