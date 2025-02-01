@@ -262,24 +262,25 @@
         }
 
         .lyric-line {
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0.8rem 1.5rem;
             border-radius: 0.8rem;
             margin: 0.4rem 0;
             opacity: 0.6;
             position: relative;
+            transform-origin: left center;
         }
 
         .lyric-line.active {
             background: rgba(108, 92, 231, 0.1);
             opacity: 1;
-            transform: scale(1.02);
+            transform: scale(1.02) translateX(20px);
             box-shadow: 0 4px 15px rgba(108,92,231,0.1);
         }
 
         .word-highlight {
             position: relative;
-            transition: all 0.2s ease;
+            transition: transform 0.15s ease, color 0.3s ease;
             display: inline-block;
             margin: 0 3px;
         }
@@ -373,6 +374,17 @@
             padding: 0.8rem 2rem;
             font-size: 1rem;
         }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        .loading-preview {
+            animation: pulse 1.5s infinite;
+            filter: blur(1px);
+        }
     </style>
 </head>
 <body>
@@ -392,7 +404,7 @@
 
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-music"></i> LyricMaster Pro (Beta)</h1>
+            <h1><i class="fas fa-music"></i> LyricMaster Pro</h1>
             <div class="language-badge" id="languageBadge">Erkannte Sprache: ?</div>
             <p>Studioqualität Lyrics Synchronisation</p>
         </div>
@@ -455,6 +467,7 @@
         let isProcessing = false;
         let lyricData = [];
         let isPreviewActive = false;
+        let activeElements = new Set();
 
         function showError(message) {
             document.getElementById('errorMessage').textContent = message;
@@ -486,36 +499,7 @@
 
             wavesurfer.on('timeupdate', (currentTime) => {
                 if (!isPreviewActive) return;
-
-                // Update Zeitmarker
-                document.getElementById('timeMarker').textContent = formatTime(currentTime);
-
-                // Update Lyrics-Highlights
-                lyricData.forEach((line) => {
-                    const lineElement = document.querySelector(`[data-line-id="${line.id}"]`);
-                    const isLineActive = currentTime >= line.start && currentTime <= line.end;
-                    
-                    if (isLineActive) {
-                        lineElement.classList.add('active');
-                        line.words.forEach((word) => {
-                            const wordElement = document.querySelector(`[data-word-id="${word.id}"]`);
-                            const isWordActive = currentTime >= word.start && currentTime <= word.end;
-                            wordElement.classList.toggle('active', isWordActive);
-                        });
-                    } else {
-                        lineElement.classList.remove('active');
-                    }
-                });
-
-                // Auto-Scroll
-                const activeLine = document.querySelector('.lyric-line.active');
-                if (activeLine) {
-                    activeLine.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center',
-                        inline: 'nearest'
-                    });
-                }
+                updatePlayback(currentTime);
             });
         });
 
@@ -552,12 +536,12 @@
                 const frequencyData = await analyzeAudio(audioBuffer);
                 
                 updateUI('Erkenne Patterns...', 40);
-                const beats = detectBeats(frequencyData, audioBuffer.sampleRate, language);
+                const beats = detectBeats(frequencyData, audioBuffer.sampleRate);
                 
                 updateUI('Optimiere Sync...', 60);
-                const lrcContent = generateLRC(lyrics, beats, audioBuffer.duration, language);
+                const lrcContent = generateLRC(lyrics, beats, audioBuffer.duration);
                 
-                preparePreview(lyrics, beats, audioBuffer.duration, language);
+                preparePreview(lyrics, beats, audioBuffer.duration);
                 document.getElementById('previewButton').style.display = 'block';
                 
                 createDownload(lrcContent);
@@ -572,21 +556,33 @@
             }
         }
 
-        function preparePreview(lyrics, beats, duration, language) {
+        function preparePreview(lyrics, beats, duration) {
             lyricData = [];
             let beatIndex = 0;
+            const minLineDuration = 0.5;
 
             lyrics.forEach((line, index) => {
-                const words = line.split(' ');
-                const lineStart = beats[beatIndex] || (lyricData[index-1]?.end || 0);
-                const lineEnd = beats[beatIndex + words.length] || lineStart + (duration / lyrics.length);
-                
-                const wordTimings = words.map((word, i) => ({
-                    word,
-                    start: lineStart + (i * ((lineEnd - lineStart) / words.length)),
-                    end: lineStart + ((i + 1) * ((lineEnd - lineStart) / words.length)),
-                    id: Date.now() + Math.random()
-                }));
+                const words = line.split(' ').filter(w => w.trim());
+                if (words.length === 0) return;
+
+                const availableBeats = beats.slice(beatIndex, beatIndex + words.length + 1);
+                const lineStart = availableBeats[0] || (lyricData[index-1]?.end || 0);
+                let lineEnd = availableBeats[availableBeats.length - 1] || lineStart + minLineDuration;
+
+                if ((lineEnd - lineStart) < minLineDuration) {
+                    lineEnd = lineStart + minLineDuration;
+                }
+
+                const wordTimings = words.map((word, i) => {
+                    const start = availableBeats[i] || lineStart + (i * (lineEnd - lineStart) / words.length);
+                    const end = availableBeats[i + 1] || start + ((lineEnd - start) / (words.length - i));
+                    return {
+                        word,
+                        start,
+                        end,
+                        id: Date.now() + Math.random()
+                    };
+                });
 
                 lyricData.push({
                     id: Date.now() + Math.random(),
@@ -596,7 +592,7 @@
                     end: lineEnd
                 });
 
-                beatIndex += words.length;
+                beatIndex += Math.max(availableBeats.length - 1, words.length);
             });
 
             updateLyricsPreview();
@@ -604,6 +600,11 @@
 
         function updateLyricsPreview() {
             const preview = document.getElementById('lyricsPreview');
+            preview.classList.add('loading-preview');
+            
+            activeElements.forEach(element => element.classList.remove('active'));
+            activeElements.clear();
+
             preview.innerHTML = `
                 <div class="time-marker" id="timeMarker">00:00</div>
                 ${lyricData.map(line => `
@@ -622,14 +623,52 @@
                     </div>
                 `).join('')}
             `;
+
+            preview.scrollTo({ top: 0, behavior: 'auto' });
+            preview.classList.remove('loading-preview');
         }
 
-        function togglePreview() {
-            const previewContainer = document.querySelector('.preview-container');
-            isPreviewActive = !isPreviewActive;
-            previewContainer.style.display = isPreviewActive ? 'block' : 'none';
-            document.getElementById('previewButton').style.background = 
-                isPreviewActive ? 'var(--danger)' : 'var(--success)';
+        function updatePlayback(time) {
+            const marker = document.getElementById('timeMarker');
+            if (marker) marker.textContent = formatTime(time);
+
+            const newActiveElements = new Set();
+
+            lyricData.forEach(line => {
+                const lineElement = document.querySelector(`[data-line-id="${line.id}"]`);
+                const isLineActive = time >= line.start && time <= line.end;
+
+                if (isLineActive) {
+                    lineElement.classList.add('active');
+                    newActiveElements.add(lineElement);
+
+                    line.words.forEach(word => {
+                        const wordElement = document.querySelector(`[data-word-id="${word.id}"]`);
+                        if (time >= word.start && time <= word.end) {
+                            wordElement.classList.add('active');
+                            newActiveElements.add(wordElement);
+                        }
+                    });
+                }
+            });
+
+            activeElements.forEach(element => {
+                if (!newActiveElements.has(element)) element.classList.remove('active');
+            });
+            activeElements = newActiveElements;
+
+            const activeLine = document.querySelector('.lyric-line.active');
+            if (activeLine) {
+                const container = document.getElementById('lyricsPreview');
+                const lineTop = activeLine.offsetTop;
+                const lineHeight = activeLine.offsetHeight;
+                const containerHeight = container.offsetHeight;
+                
+                container.scrollTo({
+                    top: lineTop - (containerHeight / 2) + (lineHeight / 2),
+                    behavior: 'smooth'
+                });
+            }
         }
 
         async function analyzeAudio(buffer) {
@@ -655,8 +694,10 @@
             const windowSize = Math.floor(sampleRate * 0.05);
             let energyHistory = [];
             let dynamicThreshold = 1.3;
+            let lastBeatTime = -1;
 
             for (let i = 0; i < frequencyData.length; i += windowSize) {
+                const currentTime = i / sampleRate;
                 const slice = frequencyData.slice(i, i + windowSize);
                 const currentEnergy = slice.reduce((a, b) => a + b, 0) / slice.length;
                 
@@ -664,15 +705,16 @@
                     ? energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length 
                     : currentEnergy;
 
-                if (currentEnergy > avgEnergy * dynamicThreshold) {
-                    beats.push(i / sampleRate);
+                if (currentEnergy > avgEnergy * dynamicThreshold && (currentTime - lastBeatTime) > 0.1) {
+                    beats.push(currentTime);
+                    lastBeatTime = currentTime;
                     dynamicThreshold = Math.max(1.1, dynamicThreshold * 0.97);
                 } else {
                     dynamicThreshold = Math.min(1.5, dynamicThreshold * 1.03);
                 }
 
                 energyHistory.push(currentEnergy);
-                if (energyHistory.length > 10) energyHistory.shift();
+                if (energyHistory.length > 43) energyHistory.shift();
             }
 
             return beats;
@@ -706,6 +748,14 @@
 
         function togglePlay() {
             wavesurfer.playPause();
+        }
+
+        function togglePreview() {
+            const previewContainer = document.querySelector('.preview-container');
+            isPreviewActive = !isPreviewActive;
+            previewContainer.style.display = isPreviewActive ? 'block' : 'none';
+            document.getElementById('previewButton').style.background = 
+                isPreviewActive ? 'var(--danger)' : 'var(--success)';
         }
 
         function handleFileUpload(e) {
