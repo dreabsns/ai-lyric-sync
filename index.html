@@ -272,7 +272,7 @@
         }
 
         .lyric-line.active {
-            background: rgba(108, 92, 231, 0.1);
+            background: linear-gradient(90deg, rgba(108,92,231,0.15) 0%, rgba(108,92,231,0) 100%);
             opacity: 1;
             transform: scale(1.02) translateX(20px);
             box-shadow: 0 4px 15px rgba(108,92,231,0.1);
@@ -287,8 +287,8 @@
 
         .word-highlight.active {
             color: var(--secondary);
-            transform: scale(1.1);
-            text-shadow: 0 0 10px rgba(168, 165, 230, 0.5);
+            transform: scale(1.15);
+            text-shadow: 0 0 15px rgba(168, 165, 230, 0.7);
         }
 
         .word-highlight.active::after {
@@ -299,12 +299,8 @@
             right: 0;
             height: 2px;
             background: var(--secondary);
-            animation: wordProgress 0.5s linear forwards;
-        }
-
-        @keyframes wordProgress {
-            from { width: 0%; }
-            to { width: 100%; }
+            width: var(--progress, 0%);
+            transition: width 0.1s linear;
         }
 
         .time-marker {
@@ -468,10 +464,13 @@
         let lyricData = [];
         let isPreviewActive = false;
         let activeElements = new Set();
+        let animationFrameId = null;
 
         function showError(message) {
+            console.error(`[Error] ${message}`);
             document.getElementById('errorMessage').textContent = message;
             document.getElementById('errorPopup').style.display = 'flex';
+            resetUI();
         }
 
         function closeError() {
@@ -486,20 +485,26 @@
                 height: 150,
                 responsive: true,
                 normalize: true,
-                cursorColor: '#ffffff'
+                cursorColor: '#ffffff',
+                cursorWidth: 2,
+                barWidth: 3,
+                barGap: 2,
+                partialRender: true,
+                interact: true
             });
 
             wavesurfer.on('play', () => {
                 document.querySelector('#playButton i').classList.replace('fa-play', 'fa-pause');
+                if (isPreviewActive) animationFrameId = requestAnimationFrame(() => updatePlayback());
             });
 
             wavesurfer.on('pause', () => {
                 document.querySelector('#playButton i').classList.replace('fa-pause', 'fa-play');
+                cancelAnimationFrame(animationFrameId);
             });
 
-            wavesurfer.on('timeupdate', (currentTime) => {
-                if (!isPreviewActive) return;
-                updatePlayback(currentTime);
+            wavesurfer.on('seek', () => {
+                if (isPreviewActive) updatePlayback();
             });
         });
 
@@ -533,10 +538,10 @@
                     `Erkannte Sprache: ${languageNames[language] || 'Unbekannt'}`;
 
                 updateUI('Analysiere Audio...', 20);
-                const frequencyData = await analyzeAudio(audioBuffer);
+                const analysisData = await analyzeAudio(audioBuffer);
                 
                 updateUI('Erkenne Patterns...', 40);
-                const beats = detectBeats(frequencyData, audioBuffer.sampleRate);
+                const beats = detectBeats(analysisData);
                 
                 updateUI('Optimiere Sync...', 60);
                 const lrcContent = generateLRC(lyrics, beats, audioBuffer.duration);
@@ -559,7 +564,7 @@
         function preparePreview(lyrics, beats, duration) {
             lyricData = [];
             let beatIndex = 0;
-            const minLineDuration = 0.5;
+            const minLineDuration = 0.8;
 
             lyrics.forEach((line, index) => {
                 const words = line.split(' ').filter(w => w.trim());
@@ -567,7 +572,10 @@
 
                 const availableBeats = beats.slice(beatIndex, beatIndex + words.length + 1);
                 const lineStart = availableBeats[0] || (lyricData[index-1]?.end || 0);
-                let lineEnd = availableBeats[availableBeats.length - 1] || lineStart + minLineDuration;
+                let lineEnd = Math.min(
+                    availableBeats[availableBeats.length - 1] || lineStart + minLineDuration,
+                    lineStart + (words.length * 0.3)
+                );
 
                 if ((lineEnd - lineStart) < minLineDuration) {
                     lineEnd = lineStart + minLineDuration;
@@ -576,12 +584,7 @@
                 const wordTimings = words.map((word, i) => {
                     const start = availableBeats[i] || lineStart + (i * (lineEnd - lineStart) / words.length);
                     const end = availableBeats[i + 1] || start + ((lineEnd - start) / (words.length - i));
-                    return {
-                        word,
-                        start,
-                        end,
-                        id: Date.now() + Math.random()
-                    };
+                    return { word, start, end, id: Date.now() + Math.random() };
                 });
 
                 lyricData.push({
@@ -628,7 +631,10 @@
             preview.classList.remove('loading-preview');
         }
 
-        function updatePlayback(time) {
+        function updatePlayback() {
+            if (!isPreviewActive) return;
+
+            const time = wavesurfer.getCurrentTime();
             const marker = document.getElementById('timeMarker');
             if (marker) marker.textContent = formatTime(time);
 
@@ -645,6 +651,8 @@
                     line.words.forEach(word => {
                         const wordElement = document.querySelector(`[data-word-id="${word.id}"]`);
                         if (time >= word.start && time <= word.end) {
+                            const progress = (time - word.start) / (word.end - word.start);
+                            wordElement.style.setProperty('--progress', `${progress * 100}%`);
                             wordElement.classList.add('active');
                             newActiveElements.add(wordElement);
                         }
@@ -653,7 +661,12 @@
             });
 
             activeElements.forEach(element => {
-                if (!newActiveElements.has(element)) element.classList.remove('active');
+                if (!newActiveElements.has(element)) {
+                    element.classList.remove('active');
+                    if (element.classList.contains('word-highlight')) {
+                        element.style.removeProperty('--progress');
+                    }
+                }
             });
             activeElements = newActiveElements;
 
@@ -669,65 +682,102 @@
                     behavior: 'smooth'
                 });
             }
+
+            animationFrameId = requestAnimationFrame(() => updatePlayback());
         }
 
         async function analyzeAudio(buffer) {
-            const offlineCtx = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
-            const source = offlineCtx.createBufferSource();
-            source.buffer = buffer;
-            
-            const analyzer = offlineCtx.createAnalyser();
-            analyzer.fftSize = 4096;
-            source.connect(analyzer);
-            analyzer.connect(offlineCtx.destination);
-            
-            await offlineCtx.startRendering();
-            
-            const dataArray = new Uint8Array(analyzer.frequencyBinCount);
-            analyzer.getByteFrequencyData(dataArray);
-            
-            return dataArray;
+            try {
+                const offlineCtx = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
+                const source = offlineCtx.createBufferSource();
+                source.buffer = buffer;
+                
+                const analyzer = offlineCtx.createAnalyser();
+                analyzer.fftSize = 16384;
+                analyzer.smoothingTimeConstant = 0.8;
+                
+                source.connect(analyzer);
+                analyzer.connect(offlineCtx.destination);
+                
+                await offlineCtx.startRendering();
+                
+                const frequencyData = new Float32Array(analyzer.frequencyBinCount);
+                analyzer.getFloatFrequencyData(frequencyData);
+                
+                return { 
+                    data: frequencyData,
+                    sampleRate: buffer.sampleRate,
+                    duration: buffer.duration
+                };
+            } catch (error) {
+                throw new Error('Audioanalyse fehlgeschlagen: ' + error.message);
+            }
         }
 
-        function detectBeats(frequencyData, sampleRate) {
+        function detectBeats(analysisData) {
+            const { data, sampleRate, duration } = analysisData;
             const beats = [];
-            const windowSize = Math.floor(sampleRate * 0.05);
-            let energyHistory = [];
-            let dynamicThreshold = 1.3;
-            let lastBeatTime = -1;
+            const windowSize = Math.floor(sampleRate * 0.1);
+            const historyLength = 15;
+            const threshold = 1.35;
+            
+            let spectralFlux = [];
+            let previousSpectrum = new Float32Array(data.length).fill(-100);
 
-            for (let i = 0; i < frequencyData.length; i += windowSize) {
-                const currentTime = i / sampleRate;
-                const slice = frequencyData.slice(i, i + windowSize);
-                const currentEnergy = slice.reduce((a, b) => a + b, 0) / slice.length;
+            for (let i = 0; i < data.length; i += windowSize) {
+                const currentSpectrum = data.slice(i, i + windowSize);
+                const flux = currentSpectrum.reduce((sum, val, idx) => {
+                    const diff = Math.max(0, val - previousSpectrum[idx]);
+                    return sum + diff;
+                }, 0);
                 
+                spectralFlux.push(flux);
+                previousSpectrum = currentSpectrum;
+            }
+
+            const avgFlux = spectralFlux.reduce((a, b) => a + b, 0) / spectralFlux.length;
+            let energyHistory = [];
+
+            spectralFlux.forEach((flux, index) => {
+                const time = (index * windowSize) / sampleRate;
+                const currentEnergy = flux;
                 const avgEnergy = energyHistory.length > 0 
-                    ? energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length 
+                    ? energyHistory.reduce((a, b) => a + b) / energyHistory.length 
                     : currentEnergy;
 
-                if (currentEnergy > avgEnergy * dynamicThreshold && (currentTime - lastBeatTime) > 0.1) {
-                    beats.push(currentTime);
-                    lastBeatTime = currentTime;
-                    dynamicThreshold = Math.max(1.1, dynamicThreshold * 0.97);
+                if (currentEnergy > avgEnergy * threshold && 
+                    time - (beats[beats.length - 1] || 0) > 0.15) {
+                    beats.push(time);
+                    energyHistory.push(currentEnergy * 1.2);
                 } else {
-                    dynamicThreshold = Math.min(1.5, dynamicThreshold * 1.03);
+                    energyHistory.push(currentEnergy);
                 }
 
-                energyHistory.push(currentEnergy);
-                if (energyHistory.length > 43) energyHistory.shift();
-            }
+                if (energyHistory.length > historyLength) energyHistory.shift();
+            });
 
             return beats;
         }
 
         function generateLRC(lyrics, beats, duration) {
             let lrc = '[re:AI Synchronized]\n';
+            const minLineDuration = 0.8;
             let beatIndex = 0;
+            let lastEnd = 0;
 
             lyrics.forEach((line) => {
-                const words = line.split(' ');
-                const timestamp = beats[beatIndex] || (beatIndex * (duration / beats.length));
-                lrc += `[${formatTime(timestamp)}] ${line}\n`;
+                const words = line.split(' ').filter(w => w.trim());
+                if (words.length === 0) return;
+
+                const availableBeats = beats.filter(b => b >= lastEnd);
+                const start = availableBeats[0] || lastEnd;
+                const end = Math.min(
+                    start + minLineDuration,
+                    availableBeats[words.length] || start + (words.length * 0.3)
+                );
+
+                lrc += `[${formatTime(start)}] ${line}\n`;
+                lastEnd = end;
                 beatIndex += words.length;
             });
 
@@ -741,9 +791,9 @@
         }
 
         function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-            const secs = (seconds % 60).toFixed(2).padStart(5, '0');
-            return `${mins}:${secs}`;
+            const date = new Date(0);
+            date.setSeconds(seconds);
+            return date.toISOString().substring(14, 23).replace('.', ',');
         }
 
         function togglePlay() {
@@ -756,37 +806,34 @@
             previewContainer.style.display = isPreviewActive ? 'block' : 'none';
             document.getElementById('previewButton').style.background = 
                 isPreviewActive ? 'var(--danger)' : 'var(--success)';
+            
+            if (isPreviewActive && wavesurfer.isPlaying()) {
+                animationFrameId = requestAnimationFrame(() => updatePlayback());
+            }
         }
 
-        function handleFileUpload(e) {
+        async function handleFileUpload(e) {
             try {
-                const file = e.target.files[0];
+                const file = e.target.files?.[0];
                 if (!file) return;
 
                 if (!file.type.startsWith('audio/')) {
-                    throw new Error('Ungültiges Dateiformat. Bitte laden Sie eine Audio-Datei hoch.');
+                    throw new Error('Ungültiges Dateiformat. Nur Audio-Dateien sind erlaubt.');
                 }
 
                 document.getElementById('fileName').textContent = file.name;
                 document.getElementById('fileDisplay').style.display = 'flex';
                 document.getElementById('uploadButton').style.display = 'none';
 
-                const reader = new FileReader();
-                reader.onload = async function(e) {
-                    try {
-                        const audioContext = new AudioContext();
-                        audioBuffer = await audioContext.decodeAudioData(e.target.result);
-                        wavesurfer.load(URL.createObjectURL(file));
-                        document.getElementById('playControls').style.display = 'flex';
-                    } catch (error) {
-                        showError('Fehler beim Verarbeiten der Audiodatei');
-                        removeFile();
-                    }
-                };
-                reader.readAsArrayBuffer(file);
+                const audioContext = new AudioContext();
+                const arrayBuffer = await file.arrayBuffer();
+                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                wavesurfer.load(URL.createObjectURL(file));
+                document.getElementById('playControls').style.display = 'flex';
 
             } catch (error) {
-                showError(error.message);
+                showError(`Dateiverarbeitung fehlgeschlagen: ${error.message}`);
                 removeFile();
             }
         }
@@ -804,6 +851,7 @@
                 document.querySelector('.preview-container').style.display = 'none';
                 document.getElementById('languageBadge').style.display = 'none';
                 document.getElementById('lyricsPreview').innerHTML = '';
+                cancelAnimationFrame(animationFrameId);
             } catch (error) {
                 showError(error.message);
             }
