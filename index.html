@@ -6,6 +6,7 @@
     <title>LyricMaster Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
     <style>
         :root {
             --primary: #6c5ce7;
@@ -465,6 +466,16 @@
         let isPreviewActive = false;
         let activeElements = new Set();
         let animationFrameId = null;
+        let vadModel = null;
+        let vocalSegments = [];
+
+        async function loadVADModel() {
+            try {
+                vadModel = await tf.loadGraphModel('https://cdn.jsdelivr.net/gh/patlevin/vad-web@0.0.3/model/model.json');
+            } catch (error) {
+                showError('Stimmerkennungsmodell konnte nicht geladen werden');
+            }
+        }
 
         function showError(message) {
             console.error(`[Error] ${message}`);
@@ -506,59 +517,165 @@
             wavesurfer.on('seek', () => {
                 if (isPreviewActive) updatePlayback();
             });
+
+            loadVADModel();
         });
 
-        function detectLanguage(text) {
-            const germanChars = /[äöüß]/i;
-            const englishCommon = /\b(the|and|you|that|ing)\b/i;
-            const germanCommon = /\b(und|der|die|das|ein)\b/i;
+        async function detectVocalSegments(buffer) {
+            try {
+                const audioData = buffer.getChannelData(0);
+                const sampleRate = buffer.sampleRate;
+                const windowSize = 512;
+                const segments = [];
+                let currentSegment = null;
+                const threshold = 0.85;
 
-            const hasGermanChars = germanChars.test(text);
-            const germanScore = (text.match(germanCommon) || []).length;
-            const englishScore = (text.match(englishCommon) || []).length;
+                for (let i = 0; i < audioData.length; i += windowSize) {
+                    const chunk = audioData.slice(i, i + windowSize);
+                    if (chunk.length < windowSize) break;
 
-            if (hasGermanChars || germanScore > englishScore) return 'DE';
-            if (englishScore > germanScore) return 'EN';
-            return 'UNKNOWN';
+                    const input = tf.tensor([chunk]);
+                    const prediction = vadModel.predict(input);
+                    const score = prediction.dataSync()[0];
+                    tf.dispose([input, prediction]);
+
+                    const time = i / sampleRate;
+                    
+                    if (score > threshold) {
+                        if (!currentSegment) {
+                            currentSegment = { start: time, end: time };
+                        } else {
+                            currentSegment.end = time;
+                        }
+                    } else if (currentSegment) {
+                        segments.push(currentSegment);
+                        currentSegment = null;
+                    }
+                }
+
+                return { segments };
+            } catch (error) {
+                throw new Error('Stimmerkennung fehlgeschlagen: ' + error.message);
+            }
         }
 
-        async function startProcessing() {
+        async function analyzeAudio(buffer) {
             try {
-                if (isProcessing) return;
-                isProcessing = true;
+                const offlineCtx = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
+                const source = offlineCtx.createBufferSource();
+                source.buffer = buffer;
                 
-                const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
-                if (!audioBuffer) throw new Error('Bitte Audio-Datei hochladen');
-                if (lyrics.length === 0) throw new Error('Bitte Lyrics eingeben');
+                const vocalData = await detectVocalSegments(buffer);
+                vocalSegments = vocalData.segments;
 
-                const language = detectLanguage(lyrics.join(' '));
-                const languageNames = { DE: 'Deutsch', EN: 'Englisch' };
-                document.getElementById('languageBadge').style.display = 'block';
-                document.getElementById('languageBadge').textContent = 
-                    `Erkannte Sprache: ${languageNames[language] || 'Unbekannt'}`;
-
-                updateUI('Analysiere Audio...', 20);
-                const analysisData = await analyzeAudio(audioBuffer);
+                const analyzer = offlineCtx.createAnalyser();
+                analyzer.fftSize = 16384;
+                analyzer.smoothingTimeConstant = 0.8;
                 
-                updateUI('Erkenne Patterns...', 40);
-                const beats = detectBeats(analysisData);
+                source.connect(analyzer);
+                analyzer.connect(offlineCtx.destination);
                 
-                updateUI('Optimiere Sync...', 60);
-                const lrcContent = generateLRC(lyrics, beats, audioBuffer.duration);
+                await offlineCtx.startRendering();
                 
-                preparePreview(lyrics, beats, audioBuffer.duration);
-                document.getElementById('previewButton').style.display = 'block';
+                const frequencyData = new Float32Array(analyzer.frequencyBinCount);
+                analyzer.getFloatFrequencyData(frequencyData);
                 
-                createDownload(lrcContent);
-                updateUI('Fertig!', 100);
-                document.getElementById('downloadSection').style.display = 'block';
-                isProcessing = false;
-
+                return { 
+                    data: frequencyData,
+                    sampleRate: buffer.sampleRate,
+                    duration: buffer.duration,
+                    vocalSegments: vocalData.segments
+                };
             } catch (error) {
-                showError(error.message);
-                resetUI();
-                isProcessing = false;
+                throw new Error('Audioanalyse fehlgeschlagen: ' + error.message);
             }
+        }
+
+        function detectBeats(analysisData) {
+            const { data, sampleRate, duration, vocalSegments } = analysisData;
+            const beats = [];
+            const windowSize = Math.floor(sampleRate * 0.1);
+            const historyLength = 15;
+            const threshold = 1.35;
+            
+            let spectralFlux = [];
+            let previousSpectrum = new Float32Array(data.length).fill(-100);
+
+            for (let i = 0; i < data.length; i += windowSize) {
+                const currentSpectrum = data.slice(i, i + windowSize);
+                const flux = currentSpectrum.reduce((sum, val, idx) => {
+                    const diff = Math.max(0, val - previousSpectrum[idx]);
+                    return sum + diff;
+                }, 0);
+                
+                spectralFlux.push(flux);
+                previousSpectrum = currentSpectrum;
+            }
+
+            const avgFlux = spectralFlux.reduce((a, b) => a + b, 0) / spectralFlux.length;
+            let energyHistory = [];
+
+            spectralFlux.forEach((flux, index) => {
+                const time = (index * windowSize) / sampleRate;
+                
+                const inVocalSegment = vocalSegments.some(segment => 
+                    time >= segment.start && time <= segment.end
+                );
+
+                if (!inVocalSegment) return;
+
+                const currentEnergy = flux;
+                const avgEnergy = energyHistory.length > 0 
+                    ? energyHistory.reduce((a, b) => a + b) / energyHistory.length 
+                    : currentEnergy;
+
+                if (currentEnergy > avgEnergy * threshold && 
+                    time - (beats[beats.length - 1] || 0) > 0.15) {
+                    beats.push(time);
+                    energyHistory.push(currentEnergy * 1.2);
+                } else {
+                    energyHistory.push(currentEnergy);
+                }
+
+                if (energyHistory.length > historyLength) energyHistory.shift();
+            });
+
+            return beats;
+        }
+
+        function generateLRC(lyrics, beats, duration) {
+            let lrc = '[re:AI Synchronized]\n';
+            const minLineDuration = 0.8;
+            let lastEnd = 0;
+
+            lyrics.forEach((line) => {
+                const words = line.split(' ').filter(w => w.trim());
+                if (words.length === 0) return;
+
+                const lineStart = findOptimalStart(beats, lastEnd);
+                const lineEnd = Math.min(
+                    lineStart + minLineDuration,
+                    duration
+                );
+
+                lrc += `[${formatTime(lineStart)}] ${line}\n`;
+                lastEnd = lineEnd;
+            });
+
+            const fileName = document.getElementById('fileName').textContent
+                .replace(/\.[^/.]+$/, "")
+                .replace(/[^\wäöüß-]/gi, '_')
+                .toLowerCase();
+
+            document.getElementById('downloadBtn').download = `${fileName}.lrc`;
+            return lrc;
+        }
+
+        function findOptimalStart(beats, afterTime) {
+            const relevantBeats = beats.filter(beat => 
+                beat >= afterTime && beat <= afterTime + 2
+            );
+            return relevantBeats[0] || afterTime;
         }
 
         function preparePreview(lyrics, beats, duration) {
@@ -570,20 +687,15 @@
                 const words = line.split(' ').filter(w => w.trim());
                 if (words.length === 0) return;
 
-                const availableBeats = beats.slice(beatIndex, beatIndex + words.length + 1);
-                const lineStart = availableBeats[0] || (lyricData[index-1]?.end || 0);
-                let lineEnd = Math.min(
-                    availableBeats[availableBeats.length - 1] || lineStart + minLineDuration,
+                const lineStart = findOptimalStart(beats, lyricData[index-1]?.end || 0);
+                const lineEnd = Math.min(
+                    lineStart + minLineDuration,
                     lineStart + (words.length * 0.3)
                 );
 
-                if ((lineEnd - lineStart) < minLineDuration) {
-                    lineEnd = lineStart + minLineDuration;
-                }
-
                 const wordTimings = words.map((word, i) => {
-                    const start = availableBeats[i] || lineStart + (i * (lineEnd - lineStart) / words.length);
-                    const end = availableBeats[i + 1] || start + ((lineEnd - start) / (words.length - i));
+                    const start = lineStart + (i * (lineEnd - lineStart) / words.length);
+                    const end = start + ((lineEnd - start) / (words.length - i));
                     return { word, start, end, id: Date.now() + Math.random() };
                 });
 
@@ -594,13 +706,11 @@
                     start: lineStart,
                     end: lineEnd
                 });
-
-                beatIndex += Math.max(availableBeats.length - 1, words.length);
             });
 
             updateLyricsPreview();
         }
-
+        
         function updateLyricsPreview() {
             const preview = document.getElementById('lyricsPreview');
             preview.classList.add('loading-preview');
