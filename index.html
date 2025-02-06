@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LyricMaster Pro</title>
+    <title>LyricMaster Pro+</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js"></script>
     <style>
@@ -371,15 +371,56 @@
             font-size: 1rem;
         }
 
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
+        .whisper-status {
+            background: rgba(108,92,231,0.15);
+            padding: 1rem;
+            border-radius: 1rem;
+            margin: 1rem 0;
+            display: none;
         }
 
-        .loading-preview {
-            animation: pulse 1.5s infinite;
-            filter: blur(1px);
+        .model-selector {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .model-option {
+            background: #3d3d3d;
+            padding: 1rem;
+            border-radius: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .model-option.active {
+            border-color: var(--primary);
+            background: rgba(108,92,231,0.1);
+        }
+
+        .precision-control {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .precision-control input[type="range"] {
+            flex-grow: 1;
+            height: 8px;
+            border-radius: 4px;
+            background: #3d3d3d;
+            -webkit-appearance: none;
+        }
+
+        .precision-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 50%;
         }
     </style>
 </head>
@@ -400,7 +441,7 @@
 
     <div class="container">
         <div class="header">
-            <h1><i class="fas fa-music"></i> LyricMaster Pro</h1>
+            <h1><i class="fas fa-music"></i> LyricMaster Pro+</h1>
             <div class="language-badge" id="languageBadge">Erkannte Sprache: ?</div>
             <p>Studioqualität Lyrics Synchronisation</p>
         </div>
@@ -419,6 +460,26 @@
                 </button>
                 <p style="margin-top: 1rem">oder Datei hierher ziehen</p>
                 <div class="error-message" id="modelError"></div>
+            </div>
+
+            <div class="whisper-status" id="whisperStatus">
+                <i class="fas fa-brain"></i>
+                <span>Whisper Model: <span id="currentModel">whisper-large-v3</span></span>
+                <div class="precision-control">
+                    <label>Präzision:</label>
+                    <input type="range" id="precisionSlider" min="0" max="1" step="0.1" value="0.8">
+                </div>
+            </div>
+
+            <div class="model-selector">
+                <div class="model-option active" onclick="selectModel('whisper-large-v3')">
+                    <i class="fas fa-microchip"></i>
+                    Whisper Large V3
+                </div>
+                <div class="model-option" onclick="selectModel('whisper-medium')">
+                    <i class="fas fa-microchip"></i>
+                    Whisper Medium
+                </div>
             </div>
 
             <div class="waveform" id="waveform">
@@ -466,6 +527,12 @@
         let activeElements = new Set();
         let animationFrameId = null;
 
+        const WHISPER_CONFIG = {
+            endpoint: 'YOUR_WHISPER_API_ENDPOINT',
+            currentModel: 'whisper-large-v3',
+            precision: 0.8
+        };
+
         function showError(message) {
             console.error(`[Error] ${message}`);
             document.getElementById('errorMessage').textContent = message;
@@ -508,45 +575,36 @@
             });
         });
 
-        function detectLanguage(text) {
-            const germanChars = /[äöüß]/i;
-            const englishCommon = /\b(the|and|you|that|ing)\b/i;
-            const germanCommon = /\b(und|der|die|das|ein)\b/i;
-
-            const hasGermanChars = germanChars.test(text);
-            const germanScore = (text.match(germanCommon) || []).length;
-            const englishScore = (text.match(englishCommon) || []).length;
-
-            if (hasGermanChars || germanScore > englishScore) return 'DE';
-            if (englishScore > germanScore) return 'EN';
-            return 'UNKNOWN';
+        function selectModel(modelId) {
+            WHISPER_CONFIG.currentModel = modelId;
+            document.querySelectorAll('.model-option').forEach(el => 
+                el.classList.remove('active')
+            );
+            event.target.classList.add('active');
+            document.getElementById('currentModel').textContent = modelId;
         }
 
         async function startProcessing() {
             try {
                 if (isProcessing) return;
                 isProcessing = true;
+                document.getElementById('whisperStatus').style.display = 'block';
                 
                 const lyrics = document.getElementById('lyricsInput').value.split('\n').filter(l => l.trim());
                 if (!audioBuffer) throw new Error('Bitte Audio-Datei hochladen');
                 if (lyrics.length === 0) throw new Error('Bitte Lyrics eingeben');
 
-                const language = detectLanguage(lyrics.join(' '));
-                const languageNames = { DE: 'Deutsch', EN: 'Englisch' };
+                updateUI('Analysiere Audio mit Whisper...', 20);
+                const { words, language } = await transcribeAudio(audioBuffer);
+                
                 document.getElementById('languageBadge').style.display = 'block';
                 document.getElementById('languageBadge').textContent = 
-                    `Erkannte Sprache: ${languageNames[language] || 'Unbekannt'}`;
+                    `Erkannte Sprache: ${language.toUpperCase()}`;
 
-                updateUI('Analysiere Audio...', 20);
-                const analysisData = await analyzeAudio(audioBuffer);
+                updateUI('Synchronisiere Lyrics...', 60);
+                const lrcContent = generateLRC(lyrics, words);
                 
-                updateUI('Erkenne Patterns...', 40);
-                const beats = detectBeats(analysisData);
-                
-                updateUI('Optimiere Sync...', 60);
-                const lrcContent = generateLRC(lyrics, beats, audioBuffer.duration);
-                
-                preparePreview(lyrics, beats, audioBuffer.duration);
+                preparePreview(lyrics, words);
                 document.getElementById('previewButton').style.display = 'block';
                 
                 createDownload(lrcContent);
@@ -561,224 +619,37 @@
             }
         }
 
-        function preparePreview(lyrics, beats, duration) {
-            lyricData = [];
-            let beatIndex = 0;
-            const minLineDuration = 0.8;
+        async function transcribeAudio(buffer) {
+            const formData = new FormData();
+            const audioBlob = new Blob([await buffer.arrayBuffer()], { type: 'audio/wav' });
+            formData.append('audio', audioBlob, 'recording.wav');
+            formData.append('model', WHISPER_CONFIG.currentModel);
+            formData.append('precision', WHISPER_CONFIG.precision);
 
-            lyrics.forEach((line, index) => {
-                const words = line.split(' ').filter(w => w.trim());
-                if (words.length === 0) return;
-
-                const availableBeats = beats.slice(beatIndex, beatIndex + words.length + 1);
-                const lineStart = availableBeats[0] || (lyricData[index-1]?.end || 0);
-                let lineEnd = Math.min(
-                    availableBeats[availableBeats.length - 1] || lineStart + minLineDuration,
-                    lineStart + (words.length * 0.3)
-                );
-
-                if ((lineEnd - lineStart) < minLineDuration) {
-                    lineEnd = lineStart + minLineDuration;
-                }
-
-                const wordTimings = words.map((word, i) => {
-                    const start = availableBeats[i] || lineStart + (i * (lineEnd - lineStart) / words.length);
-                    const end = availableBeats[i + 1] || start + ((lineEnd - start) / (words.length - i));
-                    return { word, start, end, id: Date.now() + Math.random() };
-                });
-
-                lyricData.push({
-                    id: Date.now() + Math.random(),
-                    line,
-                    words: wordTimings,
-                    start: lineStart,
-                    end: lineEnd
-                });
-
-                beatIndex += Math.max(availableBeats.length - 1, words.length);
-            });
-
-            updateLyricsPreview();
-        }
-
-        function updateLyricsPreview() {
-            const preview = document.getElementById('lyricsPreview');
-            preview.classList.add('loading-preview');
-            
-            activeElements.forEach(element => element.classList.remove('active'));
-            activeElements.clear();
-
-            preview.innerHTML = `
-                <div class="time-marker" id="timeMarker">00:00</div>
-                ${lyricData.map(line => `
-                    <div class="lyric-line" 
-                         data-line-id="${line.id}"
-                         data-start="${line.start}" 
-                         data-end="${line.end}">
-                        ${line.words.map(word => `
-                            <span class="word-highlight" 
-                                  data-word-id="${word.id}"
-                                  data-start="${word.start}" 
-                                  data-end="${word.end}">
-                                ${word.word}
-                            </span>
-                        `).join(' ')}
-                    </div>
-                `).join('')}
-            `;
-
-            preview.scrollTo({ top: 0, behavior: 'auto' });
-            preview.classList.remove('loading-preview');
-        }
-
-        function updatePlayback() {
-            if (!isPreviewActive) return;
-
-            const time = wavesurfer.getCurrentTime();
-            const marker = document.getElementById('timeMarker');
-            if (marker) marker.textContent = formatTime(time);
-
-            const newActiveElements = new Set();
-
-            lyricData.forEach(line => {
-                const lineElement = document.querySelector(`[data-line-id="${line.id}"]`);
-                const isLineActive = time >= line.start && time <= line.end;
-
-                if (isLineActive) {
-                    lineElement.classList.add('active');
-                    newActiveElements.add(lineElement);
-
-                    line.words.forEach(word => {
-                        const wordElement = document.querySelector(`[data-word-id="${word.id}"]`);
-                        if (time >= word.start && time <= word.end) {
-                            const progress = (time - word.start) / (word.end - word.start);
-                            wordElement.style.setProperty('--progress', `${progress * 100}%`);
-                            wordElement.classList.add('active');
-                            newActiveElements.add(wordElement);
-                        }
-                    });
-                }
-            });
-
-            activeElements.forEach(element => {
-                if (!newActiveElements.has(element)) {
-                    element.classList.remove('active');
-                    if (element.classList.contains('word-highlight')) {
-                        element.style.removeProperty('--progress');
-                    }
-                }
-            });
-            activeElements = newActiveElements;
-
-            const activeLine = document.querySelector('.lyric-line.active');
-            if (activeLine) {
-                const container = document.getElementById('lyricsPreview');
-                const lineTop = activeLine.offsetTop;
-                const lineHeight = activeLine.offsetHeight;
-                const containerHeight = container.offsetHeight;
-                
-                container.scrollTo({
-                    top: lineTop - (containerHeight / 2) + (lineHeight / 2),
-                    behavior: 'smooth'
-                });
-            }
-
-            animationFrameId = requestAnimationFrame(() => updatePlayback());
-        }
-
-        async function analyzeAudio(buffer) {
             try {
-                const offlineCtx = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
-                const source = offlineCtx.createBufferSource();
-                source.buffer = buffer;
+                const response = await fetch(WHISPER_CONFIG.endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
                 
-                const analyzer = offlineCtx.createAnalyser();
-                analyzer.fftSize = 16384;
-                analyzer.smoothingTimeConstant = 0.8;
-                
-                source.connect(analyzer);
-                analyzer.connect(offlineCtx.destination);
-                
-                await offlineCtx.startRendering();
-                
-                const frequencyData = new Float32Array(analyzer.frequencyBinCount);
-                analyzer.getFloatFrequencyData(frequencyData);
-                
-                return { 
-                    data: frequencyData,
-                    sampleRate: buffer.sampleRate,
-                    duration: buffer.duration
-                };
+                if (!response.ok) throw new Error('Transkription fehlgeschlagen');
+                return response.json();
             } catch (error) {
-                throw new Error('Audioanalyse fehlgeschlagen: ' + error.message);
+                throw new Error(`Whisper API Fehler: ${error.message}`);
             }
         }
 
-        function detectBeats(analysisData) {
-            const { data, sampleRate, duration } = analysisData;
-            const beats = [];
-            const windowSize = Math.floor(sampleRate * 0.1);
-            const historyLength = 15;
-            const threshold = 1.35;
-            
-            let spectralFlux = [];
-            let previousSpectrum = new Float32Array(data.length).fill(-100);
-
-            for (let i = 0; i < data.length; i += windowSize) {
-                const currentSpectrum = data.slice(i, i + windowSize);
-                const flux = currentSpectrum.reduce((sum, val, idx) => {
-                    const diff = Math.max(0, val - previousSpectrum[idx]);
-                    return sum + diff;
-                }, 0);
-                
-                spectralFlux.push(flux);
-                previousSpectrum = currentSpectrum;
-            }
-
-            const avgFlux = spectralFlux.reduce((a, b) => a + b, 0) / spectralFlux.length;
-            let energyHistory = [];
-
-            spectralFlux.forEach((flux, index) => {
-                const time = (index * windowSize) / sampleRate;
-                const currentEnergy = flux;
-                const avgEnergy = energyHistory.length > 0 
-                    ? energyHistory.reduce((a, b) => a + b) / energyHistory.length 
-                    : currentEnergy;
-
-                if (currentEnergy > avgEnergy * threshold && 
-                    time - (beats[beats.length - 1] || 0) > 0.15) {
-                    beats.push(time);
-                    energyHistory.push(currentEnergy * 1.2);
-                } else {
-                    energyHistory.push(currentEnergy);
-                }
-
-                if (energyHistory.length > historyLength) energyHistory.shift();
-            });
-
-            return beats;
-        }
-
-        function generateLRC(lyrics, beats, duration) {
+        function generateLRC(lyrics, words) {
             let lrc = '[re:AI Synchronized]\n';
-            const minLineDuration = 0.8;
-            let beatIndex = 0;
-            let lastEnd = 0;
-
-            lyrics.forEach((line) => {
-                const words = line.split(' ').filter(w => w.trim());
-                if (words.length === 0) return;
-
-                const availableBeats = beats.filter(b => b >= lastEnd);
-                const start = availableBeats[0] || lastEnd;
-                const end = Math.min(
-                    start + minLineDuration,
-                    availableBeats[words.length] || start + (words.length * 0.3)
-                );
-
-                lrc += `[${formatTime(start)}] ${line}\n`;
-                lastEnd = end;
-                beatIndex += words.length;
+            let wordIndex = 0;
+            
+            lyrics.forEach(line => {
+                const lineWords = line.split(' ');
+                const lineStart = words[wordIndex]?.start || 0;
+                const lineEnd = words[Math.min(wordIndex + lineWords.length - 1, words.length - 1)]?.end || 0;
+                
+                lrc += `[${formatTime(lineStart)}] ${line}\n`;
+                wordIndex += lineWords.length;
             });
 
             const fileName = document.getElementById('fileName').textContent
@@ -788,6 +659,34 @@
 
             document.getElementById('downloadBtn').download = `${fileName}.lrc`;
             return lrc;
+        }
+
+        function preparePreview(lyrics, words) {
+            lyricData = [];
+            let wordIndex = 0;
+
+            lyrics.forEach((line, index) => {
+                const lineWords = line.split(' ');
+                const wordTimings = lineWords.map(word => {
+                    const timing = words[wordIndex++] || { start: 0, end: 0 };
+                    return { 
+                        word,
+                        start: timing.start,
+                        end: timing.end,
+                        id: Date.now() + Math.random()
+                    };
+                });
+
+                lyricData.push({
+                    id: Date.now() + Math.random(),
+                    line,
+                    words: wordTimings,
+                    start: wordTimings[0]?.start || 0,
+                    end: wordTimings[wordTimings.length - 1]?.end || 0
+                });
+            });
+
+            updateLyricsPreview();
         }
 
         function formatTime(seconds) {
@@ -851,6 +750,7 @@
                 document.querySelector('.preview-container').style.display = 'none';
                 document.getElementById('languageBadge').style.display = 'none';
                 document.getElementById('lyricsPreview').innerHTML = '';
+                document.getElementById('whisperStatus').style.display = 'none';
                 cancelAnimationFrame(animationFrameId);
             } catch (error) {
                 showError(error.message);
@@ -874,10 +774,14 @@
                 `<i class="fas fa-robot"></i> Lyrics synchronisieren`;
             document.getElementById('downloadSection').style.display = 'none';
             document.getElementById('languageBadge').style.display = 'none';
+            document.getElementById('whisperStatus').style.display = 'none';
         }
 
         // Event Listeners
         document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        document.getElementById('precisionSlider').addEventListener('input', e => {
+            WHISPER_CONFIG.precision = parseFloat(e.target.value);
+        });
 
         const dropZone = document.getElementById('dropZone');
         dropZone.addEventListener('dragover', e => {
