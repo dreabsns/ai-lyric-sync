@@ -4,16 +4,23 @@ const axios = require('axios');
 const cors = require('cors');
 const FormData = require('form-data');
 const { Readable } = require('stream');
+const bodyParser = require('body-parser');
 const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
 // Whisper API Endpoint
 app.post('/api/transcribe', async (req, res) => {
   try {
-    // Convert base64 audio to buffer
+    // Validate input
+    if (!req.body.audio) {
+      throw new Error('No audio data received');
+    }
+
+    // Convert base64 to buffer
     const audioBuffer = Buffer.from(req.body.audio, 'base64');
     
     // Create FormData for OpenAI
@@ -39,7 +46,7 @@ app.post('/api/transcribe', async (req, res) => {
       }
     );
 
-    // Process results
+    // Process response
     const words = response.data.segments.flatMap(segment => 
       segment.words.map(word => ({
         word: word.word,
@@ -54,14 +61,14 @@ app.post('/api/transcribe', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Transcription error:', error.response?.data || error.message);
+    console.error('Error:', error.response?.data || error.message);
     res.status(500).json({
       error: 'Transcription failed',
-      details: error.response?.data || error.message
+      details: error.response?.data?.error?.message || error.message
     });
   }
 });
 
 // Start server
 const PORT = process.env.PORT || 3001;
-app.use(cors({ origin: 'http://localhost:8000' }))
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
