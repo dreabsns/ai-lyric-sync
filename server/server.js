@@ -64,4 +64,4 @@ app.post('/api/transcribe', async (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.use(cors({ origin: 'http://localhost:8000' }))
